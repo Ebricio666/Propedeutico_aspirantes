@@ -515,8 +515,12 @@ elif seccion == "Calidad de datos":
                 subset=[columna_id],
                 keep=False
             )
-        ].sort_values(columna_id)
-
+        ].assign(
+    _matricula_orden=lambda x: x[columna_id]
+    .fillna("")
+    .astype(str)
+    .str.strip()
+).sort_values("_matricula_orden").drop(columns="_matricula_orden")
         st.markdown("#### Matrículas repetidas")
 
         if duplicados.empty:
