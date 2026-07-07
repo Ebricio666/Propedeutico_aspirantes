@@ -1,15 +1,16 @@
 import io
 import re
 import unicodedata
-from datetime import datetime, date
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 
 # ============================================================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN
 # ============================================================
 
 st.set_page_config(
@@ -20,7 +21,8 @@ st.set_page_config(
 
 st.title("🎓 Módulo 1 · Historial de Aspirantes")
 st.caption(
-    "Carga, integración y análisis básico de aspirantes por carrera."
+    "Integración de registros de aspirantes, estadística básica "
+    "y distribución por carrera."
 )
 
 
@@ -29,34 +31,67 @@ st.caption(
 # ============================================================
 
 def limpiar_texto(valor):
-    """Convierte un texto a formato comparable: minúsculas, sin acentos."""
+    """Convierte texto a minúsculas, sin acentos y espacios repetidos."""
     if pd.isna(valor):
         return ""
 
     texto = str(valor).strip().lower()
     texto = unicodedata.normalize("NFD", texto)
     texto = "".join(
-        caracter for caracter in texto
+        caracter
+        for caracter in texto
         if unicodedata.category(caracter) != "Mn"
     )
+
     return re.sub(r"\s+", " ", texto)
+
+
+def nombres_unicos(encabezados):
+    """
+    Conserva los encabezados originales.
+    Cuando existen columnas repetidas, añade un sufijo para evitar errores.
+    """
+    usados = {}
+    resultado = []
+
+    for posicion, encabezado in enumerate(encabezados, start=1):
+        if pd.isna(encabezado) or str(encabezado).strip() == "":
+            nombre = f"Columna_sin_nombre_{posicion}"
+        else:
+            nombre = str(encabezado).strip()
+
+        if nombre in usados:
+            usados[nombre] += 1
+            nombre = f"{nombre}_{usados[nombre]}"
+        else:
+            usados[nombre] = 1
+
+        resultado.append(nombre)
+
+    return resultado
 
 
 def buscar_fila_encabezados(df_crudo):
     """
-    Busca automáticamente la fila que contiene encabezados.
-    La referencia principal es la columna Matrícula/ID.
+    Busca la fila donde están los encabezados.
+    Funciona aunque cada carrera tenga una fila de encabezados distinta.
     """
     palabras_clave = [
         "matricula/id",
         "matricula",
         "id",
         "apellido paterno",
-        "nombre (s)"
+        "apellido materno",
+        "nombre (s)",
+        "nombre"
     ]
 
-    for indice, fila in df_crudo.iterrows():
-        valores = [limpiar_texto(valor) for valor in fila.tolist()]
+    limite = min(len(df_crudo), 40)
+
+    for indice in range(limite):
+        fila = df_crudo.iloc[indice].tolist()
+        valores = [limpiar_texto(valor) for valor in fila]
+
         coincidencias = sum(
             any(palabra in valor for valor in valores)
             for palabra in palabras_clave
@@ -70,22 +105,29 @@ def buscar_fila_encabezados(df_crudo):
 
 def obtener_nombre_carrera(nombre_hoja, df_crudo):
     """
-    Intenta recuperar el nombre de carrera desde la hoja.
-    Si no encuentra una celda con 'CARRERA', usa el nombre de la hoja.
+    Busca el nombre de carrera dentro de la hoja.
+    Si no aparece, utiliza el nombre de la pestaña como respaldo.
     """
-    for _, fila in df_crudo.iterrows():
-        valores = fila.tolist()
+    limite = min(len(df_crudo), 15)
 
-        for i, valor in enumerate(valores):
+    for indice in range(limite):
+        fila = df_crudo.iloc[indice].tolist()
+
+        for posicion, valor in enumerate(fila):
             if limpiar_texto(valor) == "carrera":
-                if i + 1 < len(valores) and pd.notna(valores[i + 1]):
-                    return str(valores[i + 1]).strip()
+                if posicion + 1 < len(fila):
+                    posible_carrera = fila[posicion + 1]
+
+                    if pd.notna(posible_carrera):
+                        return str(posible_carrera).strip()
 
     return str(nombre_hoja).strip()
 
 
 def encontrar_columna(df, posibles_nombres):
-    """Encuentra una columna aunque cambien mayúsculas, acentos o espacios."""
+    """
+    Encuentra una columna aunque cambien mayúsculas, acentos o espacios.
+    """
     columnas_limpias = {
         limpiar_texto(columna): columna
         for columna in df.columns
@@ -94,10 +136,11 @@ def encontrar_columna(df, posibles_nombres):
     for posible in posibles_nombres:
         posible_limpio = limpiar_texto(posible)
 
-        for columna_limpia, columna_original in columnas_limpias.items():
-            if posible_limpio == columna_limpia:
-                return columna_original
+        # Coincidencia exacta
+        if posible_limpio in columnas_limpias:
+            return columnas_limpias[posible_limpio]
 
+        # Coincidencia parcial
         for columna_limpia, columna_original in columnas_limpias.items():
             if posible_limpio in columna_limpia:
                 return columna_original
@@ -107,12 +150,13 @@ def encontrar_columna(df, posibles_nombres):
 
 def convertir_promedio(valor):
     """
-    Normaliza el promedio a escala 0-100.
+    Convierte promedios a una escala de 0 a 100.
 
-    Reglas:
-    - 0 a 10: se multiplica por 10.
-    - Mayor a 10 y hasta 100: se conserva.
-    - Fuera de rango, fechas o texto no numérico: dato dudoso.
+    Regla:
+    0 a 10     -> se multiplica por 10.
+    10 a 100   -> se conserva.
+    Fecha      -> se marca como dudosa.
+    Otro valor -> se marca como dudoso.
     """
 
     if pd.isna(valor) or str(valor).strip() == "":
@@ -121,16 +165,18 @@ def convertir_promedio(valor):
     if isinstance(valor, (datetime, date, pd.Timestamp)):
         return np.nan, "Dato dudoso: formato fecha"
 
-    if isinstance(valor, str):
-        valor = valor.strip().replace(",", ".")
+    texto = str(valor).strip()
+    texto = texto.replace("\xa0", " ")
+    texto = texto.replace(",", ".")
+    texto = texto.lstrip("'").strip()
 
     try:
-        numero = float(valor)
+        numero = float(texto)
     except (TypeError, ValueError):
         return np.nan, "Dato dudoso: no numérico"
 
     if 0 <= numero <= 10:
-        return round(numero * 10, 2), "Válido: convertido de escala 0-10"
+        return round(numero * 10, 2), "Convertido de escala 0-10"
 
     if 10 < numero <= 100:
         return round(numero, 2), "Válido: escala 0-100"
@@ -138,11 +184,12 @@ def convertir_promedio(valor):
     return np.nan, "Dato dudoso: fuera de rango"
 
 
-def procesar_hoja(archivo, nombre_hoja):
+def procesar_hoja(contenido_archivo, nombre_hoja):
     """
-    Lee una hoja sin perder columnas originales.
-    Detecta encabezados, conserva todas las variables y añade Carrera.
+    Lee una hoja, conserva todos sus encabezados y añade Carrera.
     """
+
+    archivo = io.BytesIO(contenido_archivo)
 
     df_crudo = pd.read_excel(
         archivo,
@@ -155,27 +202,20 @@ def procesar_hoja(archivo, nombre_hoja):
 
     if fila_encabezados is None:
         return None, {
-            "hoja": nombre_hoja,
-            "estatus": "No procesada",
-            "detalle": "No se identificó la fila de encabezados."
+            "Hoja": nombre_hoja,
+            "Estatus": "No procesada",
+            "Detalle": "No se identificó una fila de encabezados."
         }
 
     carrera = obtener_nombre_carrera(nombre_hoja, df_crudo)
 
     encabezados = df_crudo.iloc[fila_encabezados].tolist()
-    encabezados_limpios = []
-
-    for posicion, encabezado in enumerate(encabezados):
-        if pd.isna(encabezado) or str(encabezado).strip() == "":
-            encabezados_limpios.append(f"Columna_sin_nombre_{posicion + 1}")
-        else:
-            encabezados_limpios.append(str(encabezado).strip())
+    encabezados = nombres_unicos(encabezados)
 
     df = df_crudo.iloc[fila_encabezados + 1:].copy()
-    df.columns = encabezados_limpios
+    df.columns = encabezados
 
-    # No se eliminan columnas.
-    # Solo se eliminan filas completamente vacías.
+    # Elimina solo filas completamente vacías.
     df = df.dropna(how="all").copy()
 
     columna_id = encontrar_columna(
@@ -183,45 +223,52 @@ def procesar_hoja(archivo, nombre_hoja):
         ["Matrícula/ID", "Matrícula", "ID"]
     )
 
-    # Conservamos únicamente filas de personas identificables.
-    # Esto evita traer notas, totales o celdas administrativas al análisis.
+    # Conserva registros con matrícula o ID.
     if columna_id is not None:
         df = df[df[columna_id].notna()].copy()
 
-    # Se añade carrera sin borrar ningún encabezado existente.
+    # Columnas nuevas para trazabilidad.
     df["Carrera"] = carrera
     df["Hoja_origen"] = nombre_hoja
 
     columna_promedio = encontrar_columna(
         df,
-        ["Promedio Bachillerato", "Promedio", "Promedio de Bachillerato"]
+        [
+            "Promedio Bachillerato",
+            "Promedio de Bachillerato",
+            "Promedio"
+        ]
     )
 
     if columna_promedio is not None:
-        resultado_promedio = df[columna_promedio].apply(convertir_promedio)
+        df["Promedio_original"] = df[columna_promedio]
 
-        df["Promedio_normalizado_100"] = resultado_promedio.apply(
+        resultado = df[columna_promedio].apply(convertir_promedio)
+
+        df["Promedio_normalizado_100"] = resultado.apply(
             lambda x: x[0]
         )
 
-        df["Estatus_promedio"] = resultado_promedio.apply(
+        df["Estatus_promedio"] = resultado.apply(
             lambda x: x[1]
         )
+
     else:
+        df["Promedio_original"] = np.nan
         df["Promedio_normalizado_100"] = np.nan
-        df["Estatus_promedio"] = "Sin columna de promedio"
+        df["Estatus_promedio"] = "No se encontró columna de promedio"
 
     return df, {
-        "hoja": nombre_hoja,
-        "estatus": "Procesada",
-        "detalle": f"{len(df)} registros identificados."
+        "Hoja": nombre_hoja,
+        "Estatus": "Procesada",
+        "Detalle": f"{len(df):,} aspirantes identificados."
     }
 
 
 @st.cache_data(show_spinner=False)
 def procesar_archivo_excel(contenido_archivo):
     """
-    Integra todas las hojas en un solo DataFrame.
+    Lee todas las hojas y genera un único DataFrame integrado.
     """
 
     archivo = io.BytesIO(contenido_archivo)
@@ -232,7 +279,7 @@ def procesar_archivo_excel(contenido_archivo):
 
     for hoja in excel.sheet_names:
         df_hoja, resultado = procesar_hoja(
-            io.BytesIO(contenido_archivo),
+            contenido_archivo,
             hoja
         )
 
@@ -254,7 +301,7 @@ def procesar_archivo_excel(contenido_archivo):
 
 
 def convertir_excel_descargable(df):
-    """Convierte un DataFrame a archivo Excel descargable."""
+    """Convierte un DataFrame a Excel descargable."""
     salida = io.BytesIO()
 
     with pd.ExcelWriter(salida, engine="openpyxl") as writer:
@@ -276,18 +323,13 @@ st.sidebar.header("Menú")
 seccion = st.sidebar.radio(
     "Selecciona una sección:",
     [
-        "Carga de archivo",
         "Panorama general",
         "Lista por carrera",
         "Calidad de datos",
-        "Base integrada"
+        "Base integrada",
+        "Bitácora de carga"
     ]
 )
-
-
-# ============================================================
-# CARGA DEL ARCHIVO
-# ============================================================
 
 archivo_subido = st.sidebar.file_uploader(
     "Carga el archivo Excel de aspirantes",
@@ -295,59 +337,67 @@ archivo_subido = st.sidebar.file_uploader(
 )
 
 if archivo_subido is None:
-    st.info(
-        "Carga un archivo Excel desde el menú lateral para iniciar el análisis."
-    )
+    st.info("Carga un archivo Excel para iniciar el análisis.")
     st.stop()
+
+
+# ============================================================
+# PROCESAMIENTO
+# ============================================================
 
 contenido_archivo = archivo_subido.getvalue()
 
-with st.spinner("Leyendo e integrando hojas..."):
-    df_general, df_bitacora = procesar_archivo_excel(contenido_archivo)
+with st.spinner("Leyendo e integrando las hojas del archivo..."):
+    df_general, df_bitacora = procesar_archivo_excel(
+        contenido_archivo
+    )
 
 if df_general.empty:
     st.error(
-        "No se pudieron identificar registros de aspirantes en el archivo."
+        "No se pudieron identificar aspirantes en el archivo cargado."
     )
     st.dataframe(df_bitacora, use_container_width=True)
     st.stop()
 
 
 # ============================================================
-# SECCIÓN 1 · CARGA
+# RESUMEN POR CARRERA
 # ============================================================
 
-if seccion == "Carga de archivo":
-
-    st.subheader("Archivo procesado")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Hojas detectadas", len(df_bitacora))
-    col2.metric("Hojas procesadas", (df_bitacora["estatus"] == "Procesada").sum())
-    col3.metric("Aspirantes integrados", len(df_general))
-
-    st.markdown("#### Bitácora de lectura")
-    st.dataframe(df_bitacora, use_container_width=True)
-
-    st.success(
-        "Las columnas originales fueron conservadas. "
-        "Solo se añadieron: Carrera, Hoja_origen, "
-        "Promedio_normalizado_100 y Estatus_promedio."
+resumen_carrera = (
+    df_general
+    .groupby("Carrera", dropna=False)
+    .agg(
+        Aspirantes=("Carrera", "size"),
+        Promedio=("Promedio_normalizado_100", "mean"),
+        Mediana=("Promedio_normalizado_100", "median"),
+        Mínimo=("Promedio_normalizado_100", "min"),
+        Máximo=("Promedio_normalizado_100", "max")
     )
+    .reset_index()
+    .sort_values("Aspirantes", ascending=False)
+)
+
+for columna in ["Promedio", "Mediana", "Mínimo", "Máximo"]:
+    resumen_carrera[columna] = resumen_carrera[columna].round(2)
+
+resumen_carrera["Porcentaje"] = (
+    resumen_carrera["Aspirantes"]
+    / resumen_carrera["Aspirantes"].sum()
+    * 100
+).round(2)
 
 
 # ============================================================
-# SECCIÓN 2 · PANORAMA GENERAL
+# 1. PANORAMA GENERAL
 # ============================================================
 
-elif seccion == "Panorama general":
+if seccion == "Panorama general":
 
-    st.subheader("Estadística básica de aspirantes")
+    st.subheader("Panorama general de aspirantes")
 
     total_aspirantes = len(df_general)
     total_carreras = df_general["Carrera"].nunique()
-
     promedio_general = df_general["Promedio_normalizado_100"].mean()
     mediana_general = df_general["Promedio_normalizado_100"].median()
 
@@ -357,48 +407,81 @@ elif seccion == "Panorama general":
     col2.metric("Carreras", total_carreras)
     col3.metric(
         "Promedio general",
-        f"{promedio_general:.2f}" if pd.notna(promedio_general) else "Sin dato"
+        f"{promedio_general:.2f}"
+        if pd.notna(promedio_general)
+        else "Sin dato"
     )
     col4.metric(
-        "Mediana",
-        f"{mediana_general:.2f}" if pd.notna(mediana_general) else "Sin dato"
+        "Mediana general",
+        f"{mediana_general:.2f}"
+        if pd.notna(mediana_general)
+        else "Sin dato"
     )
 
-    st.markdown("#### Aspirantes por carrera")
+    st.markdown("### Participantes por carrera")
 
-    resumen_carrera = (
-        df_general
-        .groupby("Carrera", dropna=False)
-        .agg(
-            Aspirantes=("Carrera", "size"),
-            Promedio=("Promedio_normalizado_100", "mean"),
-            Mediana=("Promedio_normalizado_100", "median"),
-            Mínimo=("Promedio_normalizado_100", "min"),
-            Máximo=("Promedio_normalizado_100", "max")
+    col_tabla, col_grafica = st.columns([1, 1.3])
+
+    with col_tabla:
+        st.dataframe(
+            resumen_carrera[
+                [
+                    "Carrera",
+                    "Aspirantes",
+                    "Porcentaje",
+                    "Promedio",
+                    "Mediana"
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True
         )
-        .reset_index()
-        .sort_values("Aspirantes", ascending=False)
-    )
 
-    for columna in ["Promedio", "Mediana", "Mínimo", "Máximo"]:
-        resumen_carrera[columna] = resumen_carrera[columna].round(2)
+    with col_grafica:
+        fig_pastel = px.pie(
+            resumen_carrera,
+            names="Carrera",
+            values="Aspirantes",
+            hole=0.42
+        )
 
-    st.dataframe(resumen_carrera, use_container_width=True)
+        fig_pastel.update_traces(
+            textposition="inside",
+            textinfo="percent",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Aspirantes: %{value}<br>"
+                "Porcentaje: %{percent}"
+                "<extra></extra>"
+            )
+        )
 
-    st.bar_chart(
-        resumen_carrera.set_index("Carrera")["Aspirantes"]
-    )
+        fig_pastel.update_layout(
+            title="Distribución de aspirantes por carrera",
+            legend_title_text="Carrera",
+            margin=dict(t=65, b=15, l=15, r=15)
+        )
+
+        st.plotly_chart(
+            fig_pastel,
+            use_container_width=True
+        )
 
 
 # ============================================================
-# SECCIÓN 3 · LISTA POR CARRERA
+# 2. LISTA POR CARRERA
 # ============================================================
 
 elif seccion == "Lista por carrera":
 
     st.subheader("Lista de aspirantes por carrera")
 
-    carreras = sorted(df_general["Carrera"].dropna().unique())
+    carreras = sorted(
+        df_general["Carrera"]
+        .dropna()
+        .astype(str)
+        .unique()
+    )
 
     carrera_seleccionada = st.selectbox(
         "Selecciona una carrera:",
@@ -406,30 +489,34 @@ elif seccion == "Lista por carrera":
     )
 
     df_carrera = (
-        df_general[df_general["Carrera"] == carrera_seleccionada]
+        df_general[
+            df_general["Carrera"] == carrera_seleccionada
+        ]
         .copy()
     )
 
-    st.metric(
-        "Aspirantes registrados",
-        len(df_carrera)
-    )
+    st.metric("Aspirantes registrados", len(df_carrera))
 
     columnas_preferidas = [
         "Matrícula/ID",
+        "Matrícula",
+        "ID",
         "APELLIDO PATERNO",
         "APELLIDO MATERNO",
         "NOMBRE (S)",
+        "Nombre",
         "Género",
+        "Genero",
         "Escuela de Procedencia",
-        "Promedio Bachillerato",
+        "Promedio_original",
         "Promedio_normalizado_100",
         "Estatus_promedio",
         "Observaciones"
     ]
 
     columnas_disponibles = [
-        columna for columna in columnas_preferidas
+        columna
+        for columna in columnas_preferidas
         if columna in df_carrera.columns
     ]
 
@@ -453,45 +540,64 @@ elif seccion == "Lista por carrera":
 
 
 # ============================================================
-# SECCIÓN 4 · CALIDAD DE DATOS
+# 3. CALIDAD DE DATOS
 # ============================================================
 
 elif seccion == "Calidad de datos":
 
     st.subheader("Revisión de calidad de datos")
 
-    resumen_promedios = (
-        df_general["Estatus_promedio"]
-        .value_counts(dropna=False)
-        .reset_index()
-    )
+    col1, col2 = st.columns(2)
 
-    resumen_promedios.columns = [
-        "Estatus del promedio",
-        "Registros"
-    ]
+    with col1:
+        st.markdown("#### Estado de los promedios")
 
-    st.markdown("#### Estado de los promedios")
-    st.dataframe(resumen_promedios, use_container_width=True)
+        resumen_promedios = (
+            df_general["Estatus_promedio"]
+            .value_counts(dropna=False)
+            .reset_index()
+        )
+
+        resumen_promedios.columns = [
+            "Estatus del promedio",
+            "Registros"
+        ]
+
+        st.dataframe(
+            resumen_promedios,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    with col2:
+        st.markdown("#### Promedios dudosos")
+
+        cantidad_dudosos = df_general[
+            df_general["Estatus_promedio"]
+            .str.contains("Dato dudoso", na=False)
+        ].shape[0]
+
+        st.metric("Registros a revisar", cantidad_dudosos)
 
     datos_dudosos = df_general[
         df_general["Estatus_promedio"]
         .str.contains("Dato dudoso", na=False)
     ].copy()
 
-    st.markdown("#### Registros con promedio dudoso")
+    if not datos_dudosos.empty:
+        st.markdown("#### Registros con calificación dudosa")
 
-    if datos_dudosos.empty:
-        st.success("No se detectaron promedios fuera de rango.")
-    else:
         columnas_revision = [
-            columna for columna in [
+            columna
+            for columna in [
                 "Carrera",
                 "Matrícula/ID",
+                "Matrícula",
+                "ID",
                 "APELLIDO PATERNO",
                 "APELLIDO MATERNO",
                 "NOMBRE (S)",
-                "Promedio Bachillerato",
+                "Promedio_original",
                 "Promedio_normalizado_100",
                 "Estatus_promedio"
             ]
@@ -504,32 +610,45 @@ elif seccion == "Calidad de datos":
             hide_index=True
         )
 
+    else:
+        st.success("No se detectaron calificaciones dudosas.")
+
     columna_id = encontrar_columna(
         df_general,
         ["Matrícula/ID", "Matrícula", "ID"]
     )
 
     if columna_id is not None:
-        duplicados = df_general[
-            df_general.duplicated(
-                subset=[columna_id],
-                keep=False
+        duplicados = (
+            df_general[
+                df_general.duplicated(
+                    subset=[columna_id],
+                    keep=False
+                )
+            ]
+            .assign(
+                _orden_id=lambda x: (
+                    x[columna_id]
+                    .fillna("")
+                    .astype(str)
+                    .str.strip()
+                )
             )
-        ].assign(
-    _matricula_orden=lambda x: x[columna_id]
-    .fillna("")
-    .astype(str)
-    .str.strip()
-).sort_values("_matricula_orden").drop(columns="_matricula_orden")
-        st.markdown("#### Matrículas repetidas")
+            .sort_values("_orden_id")
+            .drop(columns="_orden_id")
+        )
+
+        st.markdown("#### Matrículas o ID repetidos")
 
         if duplicados.empty:
-            st.success("No se detectaron matrículas repetidas.")
+            st.success("No se detectaron matrículas o ID repetidos.")
+
         else:
             st.warning(
                 f"Se detectaron {duplicados[columna_id].nunique()} "
-                "matrículas repetidas."
+                "matrículas o ID repetidos."
             )
+
             st.dataframe(
                 duplicados,
                 use_container_width=True,
@@ -538,16 +657,17 @@ elif seccion == "Calidad de datos":
 
 
 # ============================================================
-# SECCIÓN 5 · BASE INTEGRADA
+# 4. BASE INTEGRADA
 # ============================================================
 
 elif seccion == "Base integrada":
 
-    st.subheader("Base consolidada de aspirantes")
+    st.subheader("Base integrada de aspirantes")
 
     st.caption(
-        "Incluye todas las columnas originales de cada hoja, "
-        "más las variables agregadas por el módulo."
+        "Esta vista une los registros de todas las hojas en un único "
+        "DataFrame. Conserva las columnas originales y añade Carrera, "
+        "Hoja_origen y variables de normalización del promedio."
     )
 
     st.dataframe(
@@ -566,4 +686,19 @@ elif seccion == "Base integrada":
             "application/vnd.openxmlformats-officedocument."
             "spreadsheetml.sheet"
         )
+    )
+
+
+# ============================================================
+# 5. BITÁCORA
+# ============================================================
+
+elif seccion == "Bitácora de carga":
+
+    st.subheader("Bitácora de lectura del archivo")
+
+    st.dataframe(
+        df_bitacora,
+        use_container_width=True,
+        hide_index=True
     )
