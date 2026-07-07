@@ -10,7 +10,7 @@ import streamlit as st
 
 
 # ============================================================
-# CONFIGURACIÓN
+# CONFIGURACIÓN GENERAL
 # ============================================================
 
 st.set_page_config(
@@ -21,8 +21,8 @@ st.set_page_config(
 
 st.title("🎓 Módulo 1 · Historial de Aspirantes")
 st.caption(
-    "Integración de registros de aspirantes, estadística básica "
-    "y distribución por carrera."
+    "Integración de registros, estadística básica y análisis "
+    "de calificaciones de aspirantes."
 )
 
 
@@ -31,12 +31,13 @@ st.caption(
 # ============================================================
 
 def limpiar_texto(valor):
-    """Convierte texto a minúsculas, sin acentos y espacios repetidos."""
+    """Convierte texto a minúsculas, sin acentos y sin espacios repetidos."""
     if pd.isna(valor):
         return ""
 
     texto = str(valor).strip().lower()
     texto = unicodedata.normalize("NFD", texto)
+
     texto = "".join(
         caracter
         for caracter in texto
@@ -48,13 +49,14 @@ def limpiar_texto(valor):
 
 def nombres_unicos(encabezados):
     """
-    Conserva los encabezados originales.
-    Cuando existen columnas repetidas, añade un sufijo para evitar errores.
+    Conserva encabezados originales.
+    Si hay encabezados duplicados, agrega un sufijo para evitar errores.
     """
     usados = {}
     resultado = []
 
     for posicion, encabezado in enumerate(encabezados, start=1):
+
         if pd.isna(encabezado) or str(encabezado).strip() == "":
             nombre = f"Columna_sin_nombre_{posicion}"
         else:
@@ -73,8 +75,8 @@ def nombres_unicos(encabezados):
 
 def buscar_fila_encabezados(df_crudo):
     """
-    Busca la fila donde están los encabezados.
-    Funciona aunque cada carrera tenga una fila de encabezados distinta.
+    Identifica automáticamente la fila de encabezados.
+    Busca referencias comunes como matrícula, nombre o apellidos.
     """
     palabras_clave = [
         "matricula/id",
@@ -89,6 +91,7 @@ def buscar_fila_encabezados(df_crudo):
     limite = min(len(df_crudo), 40)
 
     for indice in range(limite):
+
         fila = df_crudo.iloc[indice].tolist()
         valores = [limpiar_texto(valor) for valor in fila]
 
@@ -106,15 +109,18 @@ def buscar_fila_encabezados(df_crudo):
 def obtener_nombre_carrera(nombre_hoja, df_crudo):
     """
     Busca el nombre de carrera dentro de la hoja.
-    Si no aparece, utiliza el nombre de la pestaña como respaldo.
+    Si no lo encuentra, usa el nombre de la hoja.
     """
     limite = min(len(df_crudo), 15)
 
     for indice in range(limite):
+
         fila = df_crudo.iloc[indice].tolist()
 
         for posicion, valor in enumerate(fila):
+
             if limpiar_texto(valor) == "carrera":
+
                 if posicion + 1 < len(fila):
                     posible_carrera = fila[posicion + 1]
 
@@ -126,7 +132,7 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
 
 def encontrar_columna(df, posibles_nombres):
     """
-    Encuentra una columna aunque cambien mayúsculas, acentos o espacios.
+    Encuentra una columna aunque cambien acentos, mayúsculas o espacios.
     """
     columnas_limpias = {
         limpiar_texto(columna): columna
@@ -134,14 +140,14 @@ def encontrar_columna(df, posibles_nombres):
     }
 
     for posible in posibles_nombres:
+
         posible_limpio = limpiar_texto(posible)
 
-        # Coincidencia exacta
         if posible_limpio in columnas_limpias:
             return columnas_limpias[posible_limpio]
 
-        # Coincidencia parcial
         for columna_limpia, columna_original in columnas_limpias.items():
+
             if posible_limpio in columna_limpia:
                 return columna_original
 
@@ -150,13 +156,12 @@ def encontrar_columna(df, posibles_nombres):
 
 def convertir_promedio(valor):
     """
-    Convierte promedios a una escala de 0 a 100.
+    Normaliza promedios a una escala de 0 a 100.
 
-    Regla:
-    0 a 10     -> se multiplica por 10.
-    10 a 100   -> se conserva.
-    Fecha      -> se marca como dudosa.
-    Otro valor -> se marca como dudoso.
+    0 a 10       -> multiplica por 10.
+    Mayor de 10
+    y hasta 100  -> conserva el valor.
+    Otro valor   -> dato dudoso.
     """
 
     if pd.isna(valor) or str(valor).strip() == "":
@@ -172,6 +177,7 @@ def convertir_promedio(valor):
 
     try:
         numero = float(texto)
+
     except (TypeError, ValueError):
         return np.nan, "Dato dudoso: no numérico"
 
@@ -184,9 +190,50 @@ def convertir_promedio(valor):
     return np.nan, "Dato dudoso: fuera de rango"
 
 
+def normalizar_sexo(valor):
+    """Homologa los registros de sexo o género."""
+
+    if pd.isna(valor):
+        return "Sin especificar"
+
+    texto = limpiar_texto(valor)
+
+    if texto in ["hombre", "masculino", "m", "male"]:
+        return "Hombre"
+
+    if texto in ["mujer", "femenino", "f", "female"]:
+        return "Mujer"
+
+    return "Sin especificar"
+
+
+def clasificar_rango_promedio(valor):
+    """
+    Clasifica el promedio normalizado en rangos semáforo.
+    """
+
+    if pd.isna(valor):
+        return "Sin dato"
+
+    if 60 <= valor < 70:
+        return "60-69"
+
+    if 70 <= valor < 80:
+        return "70-79"
+
+    if 80 <= valor < 90:
+        return "80-89"
+
+    if 90 <= valor <= 100:
+        return "90-100"
+
+    return "Fuera de rango"
+
+
 def procesar_hoja(contenido_archivo, nombre_hoja):
     """
-    Lee una hoja, conserva todos sus encabezados y añade Carrera.
+    Lee una hoja del Excel, conserva todas sus columnas
+    y agrega variables necesarias para el análisis.
     """
 
     archivo = io.BytesIO(contenido_archivo)
@@ -215,7 +262,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
     df = df_crudo.iloc[fila_encabezados + 1:].copy()
     df.columns = encabezados
 
-    # Elimina solo filas completamente vacías.
+    # Elimina únicamente filas totalmente vacías.
     df = df.dropna(how="all").copy()
 
     columna_id = encontrar_columna(
@@ -223,11 +270,11 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
         ["Matrícula/ID", "Matrícula", "ID"]
     )
 
-    # Conserva registros con matrícula o ID.
+    # Solo conserva registros donde exista matrícula o identificador.
     if columna_id is not None:
         df = df[df[columna_id].notna()].copy()
 
-    # Columnas nuevas para trazabilidad.
+    # Variables añadidas, sin borrar columnas originales.
     df["Carrera"] = carrera
     df["Hoja_origen"] = nombre_hoja
 
@@ -241,6 +288,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
     )
 
     if columna_promedio is not None:
+
         df["Promedio_original"] = df[columna_promedio]
 
         resultado = df[columna_promedio].apply(convertir_promedio)
@@ -268,7 +316,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
 @st.cache_data(show_spinner=False)
 def procesar_archivo_excel(contenido_archivo):
     """
-    Lee todas las hojas y genera un único DataFrame integrado.
+    Lee todas las hojas del archivo y genera un único DataFrame.
     """
 
     archivo = io.BytesIO(contenido_archivo)
@@ -278,6 +326,7 @@ def procesar_archivo_excel(contenido_archivo):
     bitacora = []
 
     for hoja in excel.sheet_names:
+
         df_hoja, resultado = procesar_hoja(
             contenido_archivo,
             hoja
@@ -302,6 +351,7 @@ def procesar_archivo_excel(contenido_archivo):
 
 def convertir_excel_descargable(df):
     """Convierte un DataFrame a Excel descargable."""
+
     salida = io.BytesIO()
 
     with pd.ExcelWriter(salida, engine="openpyxl") as writer:
@@ -324,6 +374,7 @@ seccion = st.sidebar.radio(
     "Selecciona una sección:",
     [
         "Panorama general",
+        "Calificaciones por sexo",
         "Lista por carrera",
         "Calidad de datos",
         "Base integrada",
@@ -342,22 +393,43 @@ if archivo_subido is None:
 
 
 # ============================================================
-# PROCESAMIENTO
+# PROCESAMIENTO GENERAL DEL ARCHIVO
 # ============================================================
 
 contenido_archivo = archivo_subido.getvalue()
 
-with st.spinner("Leyendo e integrando las hojas del archivo..."):
+with st.spinner("Leyendo e integrando hojas del archivo..."):
     df_general, df_bitacora = procesar_archivo_excel(
         contenido_archivo
     )
 
 if df_general.empty:
     st.error(
-        "No se pudieron identificar aspirantes en el archivo cargado."
+        "No se pudieron identificar registros de aspirantes."
     )
     st.dataframe(df_bitacora, use_container_width=True)
     st.stop()
+
+
+# ============================================================
+# VARIABLES DERIVADAS PARA LOS ANÁLISIS
+# ============================================================
+
+columna_sexo = encontrar_columna(
+    df_general,
+    ["Género", "Genero", "Sexo"]
+)
+
+if columna_sexo is not None:
+    df_general["Sexo_normalizado"] = df_general[columna_sexo].apply(
+        normalizar_sexo
+    )
+else:
+    df_general["Sexo_normalizado"] = "Sin especificar"
+
+df_general["Rango_promedio"] = df_general[
+    "Promedio_normalizado_100"
+].apply(clasificar_rango_promedio)
 
 
 # ============================================================
@@ -389,7 +461,7 @@ resumen_carrera["Porcentaje"] = (
 
 
 # ============================================================
-# 1. PANORAMA GENERAL
+# SECCIÓN 1 · PANORAMA GENERAL
 # ============================================================
 
 if seccion == "Panorama general":
@@ -405,12 +477,14 @@ if seccion == "Panorama general":
 
     col1.metric("Aspirantes", f"{total_aspirantes:,}")
     col2.metric("Carreras", total_carreras)
+
     col3.metric(
         "Promedio general",
         f"{promedio_general:.2f}"
         if pd.notna(promedio_general)
         else "Sin dato"
     )
+
     col4.metric(
         "Mediana general",
         f"{mediana_general:.2f}"
@@ -438,6 +512,7 @@ if seccion == "Panorama general":
         )
 
     with col_grafica:
+
         fig_pastel = px.pie(
             resumen_carrera,
             names="Carrera",
@@ -469,7 +544,192 @@ if seccion == "Panorama general":
 
 
 # ============================================================
-# 2. LISTA POR CARRERA
+# SECCIÓN 2 · CALIFICACIONES POR SEXO
+# ============================================================
+
+elif seccion == "Calificaciones por sexo":
+
+    st.subheader("Distribución de calificaciones por sexo")
+
+    st.caption(
+        "Los porcentajes se calculan dentro de cada sexo. "
+        "Esto permite comparar la distribución de calificaciones "
+        "aunque el número de mujeres y hombres sea diferente."
+    )
+
+    orden_rangos = [
+        "60-69",
+        "70-79",
+        "80-89",
+        "90-100"
+    ]
+
+    df_calificaciones = df_general[
+        df_general["Rango_promedio"].isin(orden_rangos)
+    ].copy()
+
+    if df_calificaciones.empty:
+        st.warning(
+            "No se encontraron promedios válidos entre 60 y 100."
+        )
+        st.stop()
+
+    tabla_sexo_promedio = (
+        df_calificaciones
+        .groupby(["Sexo_normalizado", "Rango_promedio"])
+        .size()
+        .reset_index(name="Aspirantes")
+    )
+
+    tabla_sexo_promedio["Rango_promedio"] = pd.Categorical(
+        tabla_sexo_promedio["Rango_promedio"],
+        categories=orden_rangos,
+        ordered=True
+    )
+
+    tabla_sexo_promedio = tabla_sexo_promedio.sort_values(
+        ["Sexo_normalizado", "Rango_promedio"]
+    )
+
+    tabla_sexo_promedio["Porcentaje"] = (
+        tabla_sexo_promedio
+        .groupby("Sexo_normalizado")["Aspirantes"]
+        .transform(lambda x: (x / x.sum()) * 100)
+    )
+
+    resumen_sexo = (
+        df_calificaciones
+        .groupby("Sexo_normalizado")
+        .agg(
+            Aspirantes=("Sexo_normalizado", "size"),
+            Promedio_general=("Promedio_normalizado_100", "mean"),
+            Mediana=("Promedio_normalizado_100", "median")
+        )
+        .reset_index()
+    )
+
+    resumen_sexo["Promedio_general"] = resumen_sexo[
+        "Promedio_general"
+    ].round(2)
+
+    resumen_sexo["Mediana"] = resumen_sexo[
+        "Mediana"
+    ].round(2)
+
+    col_grafica, col_resumen = st.columns([1.6, 1])
+
+    with col_grafica:
+
+        fig_barras = px.bar(
+            tabla_sexo_promedio,
+            x="Sexo_normalizado",
+            y="Porcentaje",
+            color="Rango_promedio",
+            barmode="stack",
+            text="Porcentaje",
+            category_orders={
+                "Sexo_normalizado": [
+                    "Mujer",
+                    "Hombre",
+                    "Sin especificar"
+                ],
+                "Rango_promedio": orden_rangos
+            },
+            color_discrete_map={
+                "60-69": "#E74C3C",
+                "70-79": "#F39C12",
+                "80-89": "#F1C40F",
+                "90-100": "#27AE60"
+            },
+            labels={
+                "Sexo_normalizado": "Sexo",
+                "Porcentaje": "Porcentaje de aspirantes",
+                "Rango_promedio": "Rango de promedio"
+            }
+        )
+
+        fig_barras.update_traces(
+            texttemplate="%{y:.1f}%",
+            textposition="inside",
+            hovertemplate=(
+                "<b>Sexo:</b> %{x}<br>"
+                "<b>Rango:</b> %{fullData.name}<br>"
+                "<b>Porcentaje:</b> %{y:.1f}%"
+                "<extra></extra>"
+            )
+        )
+
+        fig_barras.update_layout(
+            title="Distribución porcentual de calificaciones por sexo",
+            yaxis=dict(
+                title="Porcentaje de aspirantes",
+                range=[0, 100],
+                ticksuffix="%"
+            ),
+            xaxis_title="",
+            legend_title_text="Rango de promedio",
+            margin=dict(t=70, b=20, l=20, r=20)
+        )
+
+        st.plotly_chart(
+            fig_barras,
+            use_container_width=True
+        )
+
+    with col_resumen:
+
+        st.markdown("#### Resumen por sexo")
+
+        st.dataframe(
+            resumen_sexo,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.markdown("#### Interpretación del semáforo")
+
+        st.markdown(
+            """
+            🔴 **60–69:** desempeño bajo  
+            🟠 **70–79:** desempeño medio-bajo  
+            🟡 **80–89:** desempeño favorable  
+            🟢 **90–100:** desempeño alto  
+            """
+        )
+
+    st.markdown("### Conteo de aspirantes por rango y sexo")
+
+    tabla_conteo = (
+        tabla_sexo_promedio
+        .pivot(
+            index="Sexo_normalizado",
+            columns="Rango_promedio",
+            values="Aspirantes"
+        )
+        .fillna(0)
+        .astype(int)
+        .reset_index()
+    )
+
+    for rango in orden_rangos:
+        if rango not in tabla_conteo.columns:
+            tabla_conteo[rango] = 0
+
+    tabla_conteo["Total"] = tabla_conteo[
+        orden_rangos
+    ].sum(axis=1)
+
+    st.dataframe(
+        tabla_conteo[
+            ["Sexo_normalizado"] + orden_rangos + ["Total"]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+# ============================================================
+# SECCIÓN 3 · LISTA POR CARRERA
 # ============================================================
 
 elif seccion == "Lista por carrera":
@@ -488,12 +748,9 @@ elif seccion == "Lista por carrera":
         carreras
     )
 
-    df_carrera = (
-        df_general[
-            df_general["Carrera"] == carrera_seleccionada
-        ]
-        .copy()
-    )
+    df_carrera = df_general[
+        df_general["Carrera"] == carrera_seleccionada
+    ].copy()
 
     st.metric("Aspirantes registrados", len(df_carrera))
 
@@ -507,6 +764,7 @@ elif seccion == "Lista por carrera":
         "Nombre",
         "Género",
         "Genero",
+        "Sexo",
         "Escuela de Procedencia",
         "Promedio_original",
         "Promedio_normalizado_100",
@@ -540,7 +798,7 @@ elif seccion == "Lista por carrera":
 
 
 # ============================================================
-# 3. CALIDAD DE DATOS
+# SECCIÓN 4 · CALIDAD DE DATOS
 # ============================================================
 
 elif seccion == "Calidad de datos":
@@ -550,6 +808,7 @@ elif seccion == "Calidad de datos":
     col1, col2 = st.columns(2)
 
     with col1:
+
         st.markdown("#### Estado de los promedios")
 
         resumen_promedios = (
@@ -570,7 +829,8 @@ elif seccion == "Calidad de datos":
         )
 
     with col2:
-        st.markdown("#### Promedios dudosos")
+
+        st.markdown("#### Calificaciones dudosas")
 
         cantidad_dudosos = df_general[
             df_general["Estatus_promedio"]
@@ -585,6 +845,7 @@ elif seccion == "Calidad de datos":
     ].copy()
 
     if not datos_dudosos.empty:
+
         st.markdown("#### Registros con calificación dudosa")
 
         columnas_revision = [
@@ -619,6 +880,7 @@ elif seccion == "Calidad de datos":
     )
 
     if columna_id is not None:
+
         duplicados = (
             df_general[
                 df_general.duplicated(
@@ -657,7 +919,7 @@ elif seccion == "Calidad de datos":
 
 
 # ============================================================
-# 4. BASE INTEGRADA
+# SECCIÓN 5 · BASE INTEGRADA
 # ============================================================
 
 elif seccion == "Base integrada":
@@ -665,9 +927,9 @@ elif seccion == "Base integrada":
     st.subheader("Base integrada de aspirantes")
 
     st.caption(
-        "Esta vista une los registros de todas las hojas en un único "
-        "DataFrame. Conserva las columnas originales y añade Carrera, "
-        "Hoja_origen y variables de normalización del promedio."
+        "La base incluye todos los registros de las hojas del archivo "
+        "en un solo DataFrame. Se preservan los encabezados originales "
+        "y se agregan variables para el análisis."
     )
 
     st.dataframe(
@@ -690,7 +952,7 @@ elif seccion == "Base integrada":
 
 
 # ============================================================
-# 5. BITÁCORA
+# SECCIÓN 6 · BITÁCORA DE CARGA
 # ============================================================
 
 elif seccion == "Bitácora de carga":
