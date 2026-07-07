@@ -21,8 +21,8 @@ st.set_page_config(
 
 st.title("🎓 Módulo 1 · Historial de Aspirantes")
 st.caption(
-    "Integración de registros, estadística básica y análisis "
-    "de calificaciones de aspirantes."
+    "Integración de registros, estadística básica, calificaciones "
+    "y procedencia académica de aspirantes."
 )
 
 
@@ -31,7 +31,7 @@ st.caption(
 # ============================================================
 
 def limpiar_texto(valor):
-    """Convierte texto a minúsculas, sin acentos y sin espacios repetidos."""
+    """Convierte texto a minúsculas, sin acentos y espacios repetidos."""
     if pd.isna(valor):
         return ""
 
@@ -50,7 +50,7 @@ def limpiar_texto(valor):
 def nombres_unicos(encabezados):
     """
     Conserva encabezados originales.
-    Si hay encabezados duplicados, agrega un sufijo para evitar errores.
+    Si existen duplicados, agrega un sufijo para evitar errores.
     """
     usados = {}
     resultado = []
@@ -74,9 +74,8 @@ def nombres_unicos(encabezados):
 
 
 def buscar_fila_encabezados(df_crudo):
-    """
-    Identifica automáticamente la fila de encabezados.
-    """
+    """Identifica automáticamente la fila de encabezados."""
+
     palabras_clave = [
         "matricula/id",
         "matricula",
@@ -110,6 +109,7 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
     Busca el nombre de carrera dentro de la hoja.
     Si no lo encuentra, utiliza el nombre de la pestaña.
     """
+
     limite = min(len(df_crudo), 15)
 
     for indice in range(limite):
@@ -131,8 +131,9 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
 
 def encontrar_columna(df, posibles_nombres):
     """
-    Encuentra una columna aunque cambien acentos, mayúsculas o espacios.
+    Encuentra una columna aunque cambien mayúsculas, acentos o espacios.
     """
+
     columnas_limpias = {
         limpiar_texto(columna): columna
         for columna in df.columns
@@ -155,11 +156,11 @@ def encontrar_columna(df, posibles_nombres):
 
 def convertir_promedio(valor):
     """
-    Normaliza promedios a una escala de 0 a 100.
+    Normaliza promedios a escala de 0 a 100.
 
     0 a 10       -> multiplica por 10.
-    Mayor de 10
-    y hasta 100  -> conserva el valor.
+    Mayor a 10
+    y hasta 100  -> conserva.
     Otro valor   -> dato dudoso.
     """
 
@@ -190,7 +191,7 @@ def convertir_promedio(valor):
 
 
 def normalizar_sexo(valor):
-    """Homologa los registros de sexo o género."""
+    """Homologa las distintas formas de registrar sexo o género."""
 
     if pd.isna(valor):
         return "Sin especificar"
@@ -207,7 +208,7 @@ def normalizar_sexo(valor):
 
 
 def clasificar_rango_promedio(valor):
-    """Clasifica el promedio normalizado en rangos tipo semáforo."""
+    """Clasifica el promedio en rangos tipo semáforo."""
 
     if pd.isna(valor):
         return "Sin dato"
@@ -227,10 +228,202 @@ def clasificar_rango_promedio(valor):
     return "Fuera de rango"
 
 
+def clasificar_estado_procedencia(valor):
+    """
+    Asigna un estado según palabras detectadas en la escuela de procedencia.
+
+    Los registros sin coincidencia se conservan como 'Por clasificar'
+    para evitar asignar un estado de manera incorrecta.
+    """
+
+    if pd.isna(valor):
+        return "Sin dato"
+
+    texto = limpiar_texto(valor)
+
+    if texto in ["", "nan", "none", "escuela de procedencia"]:
+        return "Sin dato"
+
+    # --------------------------------------------------------
+    # COLIMA
+    # --------------------------------------------------------
+    palabras_colima = [
+        "colima",
+        "villa de alvarez",
+        "villa de álvarez",
+        "tecoman",
+        "tecomán",
+        "manzanillo",
+        "comala",
+        "cuauhtemoc",
+        "cuauhtémoc",
+        "coquimatlan",
+        "coquimatlán",
+        "armeria",
+        "armería",
+        "minatitlan",
+        "minatitlán",
+        "ixtlahuacan",
+        "ixtlahuacán",
+        "zacualpan",
+        "lo de villa",
+        "el chanal",
+        "coquimatlan",
+        "qfb colima"
+    ]
+
+    if any(palabra in texto for palabra in palabras_colima):
+        return "Colima"
+
+    # --------------------------------------------------------
+    # JALISCO
+    # --------------------------------------------------------
+    palabras_jalisco = [
+        "jalisco",
+        " jal.",
+        "tuxpan",
+        "cihuatlan",
+        "cihuatlán",
+        "autlan",
+        "autlán",
+        "guadalajara",
+        "zapopan",
+        "tonala",
+        "tonalá",
+        "sayula",
+        "zapotiltic",
+        "zapotiltic",
+        "zapotlan",
+        "zapotlán",
+        "ciudad guzman",
+        "ciudad guzmán",
+        "tequila",
+        "casimiro castillo",
+        "el grullo",
+        "union de tula",
+        "unión de tula",
+        "tamazula",
+        "teocuitatlan",
+        "teocuitatlán"
+    ]
+
+    if any(palabra in texto for palabra in palabras_jalisco):
+        return "Jalisco"
+
+    # --------------------------------------------------------
+    # MICHOACÁN
+    # --------------------------------------------------------
+    palabras_michoacan = [
+        "michoacan",
+        "michoacán",
+        " mich.",
+        "coahuayana",
+        "coalcoman",
+        "coalcomán",
+        "morelia",
+        "zamora",
+        "lazaro cardenas",
+        "lázaro cárdenas",
+        "uruapan",
+        "apatzingan",
+        "apatzingán",
+        "maravatio",
+        "maravatío"
+    ]
+
+    if any(palabra in texto for palabra in palabras_michoacan):
+        return "Michoacán"
+
+    # --------------------------------------------------------
+    # NAYARIT
+    # --------------------------------------------------------
+    palabras_nayarit = [
+        "nayarit",
+        "tepic",
+        "bahia de banderas",
+        "bahía de banderas",
+        "santiago ixcuintla",
+        "compostela"
+    ]
+
+    if any(palabra in texto for palabra in palabras_nayarit):
+        return "Nayarit"
+
+    # --------------------------------------------------------
+    # GUANAJUATO
+    # --------------------------------------------------------
+    palabras_guanajuato = [
+        "guanajuato",
+        "leon",
+        "león",
+        "irapuato",
+        "celaya",
+        "salamanca"
+    ]
+
+    if any(palabra in texto for palabra in palabras_guanajuato):
+        return "Guanajuato"
+
+    # --------------------------------------------------------
+    # NUEVO LEÓN
+    # --------------------------------------------------------
+    palabras_nuevo_leon = [
+        "nuevo leon",
+        "nuevo león",
+        "monterrey",
+        "san nicolas",
+        "san nicolás",
+        "guadalupe n.l."
+    ]
+
+    if any(palabra in texto for palabra in palabras_nuevo_leon):
+        return "Nuevo León"
+
+    # --------------------------------------------------------
+    # SINALOA
+    # --------------------------------------------------------
+    palabras_sinaloa = [
+        "sinaloa",
+        "culiacan",
+        "culiacán",
+        "mazatlan",
+        "mazatlán",
+        "los mochis"
+    ]
+
+    if any(palabra in texto for palabra in palabras_sinaloa):
+        return "Sinaloa"
+
+    # --------------------------------------------------------
+    # OTROS
+    # --------------------------------------------------------
+    if "durango" in texto:
+        return "Durango"
+
+    if "sonora" in texto or "hermosillo" in texto:
+        return "Sonora"
+
+    if "baja california" in texto or "tijuana" in texto:
+        return "Baja California"
+
+    if "quintana roo" in texto or "quintana roo" in texto:
+        return "Quintana Roo"
+
+    if "veracruz" in texto:
+        return "Veracruz"
+
+    if "ciudad de mexico" in texto or "cdmx" in texto:
+        return "Ciudad de México"
+
+    if any(palabra in texto for palabra in ["canada", "canadá", "usa", "united states"]):
+        return "Internacional"
+
+    return "Por clasificar"
+
+
 def procesar_hoja(contenido_archivo, nombre_hoja):
     """
-    Lee una hoja del Excel, conserva todas sus columnas
-    y agrega variables necesarias para el análisis.
+    Lee una hoja, conserva todos sus encabezados y añade Carrera.
     """
 
     archivo = io.BytesIO(contenido_archivo)
@@ -259,7 +452,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
     df = df_crudo.iloc[fila_encabezados + 1:].copy()
     df.columns = encabezados
 
-    # Elimina únicamente filas completamente vacías.
+    # Solo elimina filas completamente vacías.
     df = df.dropna(how="all").copy()
 
     columna_id = encontrar_columna(
@@ -267,11 +460,9 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
         ["Matrícula/ID", "Matrícula", "ID"]
     )
 
-    # Conserva solo filas con un identificador.
     if columna_id is not None:
         df = df[df[columna_id].notna()].copy()
 
-    # Variables agregadas sin borrar encabezados originales.
     df["Carrera"] = carrera
     df["Hoja_origen"] = nombre_hoja
 
@@ -312,9 +503,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
 
 @st.cache_data(show_spinner=False)
 def procesar_archivo_excel(contenido_archivo):
-    """
-    Lee todas las hojas del archivo y genera un único DataFrame.
-    """
+    """Lee todas las hojas y genera un único DataFrame integrado."""
 
     archivo = io.BytesIO(contenido_archivo)
     excel = pd.ExcelFile(archivo)
@@ -347,7 +536,7 @@ def procesar_archivo_excel(contenido_archivo):
 
 
 def convertir_excel_descargable(df):
-    """Convierte un DataFrame a Excel descargable."""
+    """Convierte un DataFrame a un archivo Excel descargable."""
 
     salida = io.BytesIO()
 
@@ -407,7 +596,7 @@ if df_general.empty:
 
 
 # ============================================================
-# VARIABLES DERIVADAS PARA LOS ANÁLISIS
+# VARIABLES DERIVADAS
 # ============================================================
 
 columna_sexo = encontrar_columna(
@@ -427,8 +616,37 @@ df_general["Rango_promedio"] = df_general[
 ].apply(clasificar_rango_promedio)
 
 
+columna_escuela = encontrar_columna(
+    df_general,
+    [
+        "Escuela de Procedencia",
+        "Escuela Procedencia",
+        "Procedencia",
+        "Escuela"
+    ]
+)
+
+if columna_escuela is not None:
+
+    df_general["Escuela_procedencia_limpia"] = (
+        df_general[columna_escuela]
+        .astype(str)
+        .str.replace("\n", " ", regex=False)
+        .str.replace(r"\s+", " ", regex=True)
+        .str.strip()
+    )
+
+    df_general["Estado_procedencia"] = df_general[
+        columna_escuela
+    ].apply(clasificar_estado_procedencia)
+
+else:
+    df_general["Escuela_procedencia_limpia"] = np.nan
+    df_general["Estado_procedencia"] = "Sin dato"
+
+
 # ============================================================
-# RESUMEN POR CARRERA
+# RESÚMENES GENERALES
 # ============================================================
 
 resumen_carrera = (
@@ -453,6 +671,24 @@ resumen_carrera["Porcentaje"] = (
     / resumen_carrera["Aspirantes"].sum()
     * 100
 ).round(2)
+
+
+resumen_estado = (
+    df_general[
+        ~df_general["Estado_procedencia"].isin(["Sin dato"])
+    ]
+    .groupby("Estado_procedencia", dropna=False)
+    .size()
+    .reset_index(name="Aspirantes")
+    .sort_values("Aspirantes", ascending=False)
+)
+
+if not resumen_estado.empty:
+    resumen_estado["Porcentaje"] = (
+        resumen_estado["Aspirantes"]
+        / resumen_estado["Aspirantes"].sum()
+        * 100
+    ).round(2)
 
 
 # ============================================================
@@ -487,11 +723,94 @@ if seccion == "Panorama general":
         else "Sin dato"
     )
 
-    st.markdown("### Participantes por carrera")
+    st.markdown("### Perfil general de ingreso")
 
-    col_tabla, col_grafica = st.columns([1, 1.3])
+    col_carrera, col_procedencia = st.columns(2)
 
-    with col_tabla:
+    with col_carrera:
+
+        st.markdown("#### Aspirantes por carrera")
+
+        fig_pastel_carrera = px.pie(
+            resumen_carrera,
+            names="Carrera",
+            values="Aspirantes",
+            hole=0.45
+        )
+
+        fig_pastel_carrera.update_traces(
+            textposition="inside",
+            textinfo="percent",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Aspirantes: %{value}<br>"
+                "Porcentaje: %{percent}"
+                "<extra></extra>"
+            )
+        )
+
+        fig_pastel_carrera.update_layout(
+            legend_title_text="Carrera",
+            margin=dict(t=30, b=15, l=15, r=15),
+            height=440
+        )
+
+        st.plotly_chart(
+            fig_pastel_carrera,
+            use_container_width=True
+        )
+
+    with col_procedencia:
+
+        st.markdown("#### Procedencia por estado")
+
+        if resumen_estado.empty:
+            st.info(
+                "No se logró identificar el estado de procedencia."
+            )
+
+        else:
+            fig_estado = px.bar(
+                resumen_estado,
+                x="Aspirantes",
+                y="Estado_procedencia",
+                orientation="h",
+                text="Aspirantes"
+            )
+
+            fig_estado.update_traces(
+                textposition="outside",
+                hovertemplate=(
+                    "<b>Estado:</b> %{y}<br>"
+                    "<b>Aspirantes:</b> %{x}<br>"
+                    "<b>Porcentaje:</b> %{customdata[0]:.1f}%"
+                    "<extra></extra>"
+                ),
+                customdata=resumen_estado[["Porcentaje"]]
+            )
+
+            fig_estado.update_layout(
+                xaxis_title="Cantidad de aspirantes",
+                yaxis_title="",
+                yaxis=dict(categoryorder="total ascending"),
+                margin=dict(t=30, b=15, l=15, r=55),
+                height=440,
+                showlegend=False
+            )
+
+            st.plotly_chart(
+                fig_estado,
+                use_container_width=True
+            )
+
+    st.markdown("### Detalle de participación")
+
+    col_tabla_carrera, col_tabla_estado = st.columns(2)
+
+    with col_tabla_carrera:
+
+        st.markdown("#### Resumen por carrera")
+
         st.dataframe(
             resumen_carrera[
                 [
@@ -506,36 +825,56 @@ if seccion == "Panorama general":
             hide_index=True
         )
 
-    with col_grafica:
+    with col_tabla_estado:
 
-        fig_pastel = px.pie(
-            resumen_carrera,
-            names="Carrera",
-            values="Aspirantes",
-            hole=0.42
-        )
+        st.markdown("#### Resumen por estado de procedencia")
 
-        fig_pastel.update_traces(
-            textposition="inside",
-            textinfo="percent",
-            hovertemplate=(
-                "<b>%{label}</b><br>"
-                "Aspirantes: %{value}<br>"
-                "Porcentaje: %{percent}"
-                "<extra></extra>"
+        if not resumen_estado.empty:
+
+            tabla_estado = resumen_estado.rename(
+                columns={
+                    "Estado_procedencia": "Estado"
+                }
             )
-        )
 
-        fig_pastel.update_layout(
-            title="Distribución de aspirantes por carrera",
-            legend_title_text="Carrera",
-            margin=dict(t=65, b=15, l=15, r=15)
-        )
+            st.dataframe(
+                tabla_estado[
+                    [
+                        "Estado",
+                        "Aspirantes",
+                        "Porcentaje"
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
 
-        st.plotly_chart(
-            fig_pastel,
-            use_container_width=True
-        )
+    por_clasificar = df_general[
+        df_general["Estado_procedencia"] == "Por clasificar"
+    ].copy()
+
+    if not por_clasificar.empty:
+
+        with st.expander(
+            f"Escuelas pendientes de clasificar: {len(por_clasificar)} registros"
+        ):
+
+            escuelas_pendientes = (
+                por_clasificar["Escuela_procedencia_limpia"]
+                .value_counts()
+                .reset_index()
+            )
+
+            escuelas_pendientes.columns = [
+                "Escuela de procedencia",
+                "Aspirantes"
+            ]
+
+            st.dataframe(
+                escuelas_pendientes,
+                use_container_width=True,
+                hide_index=True
+            )
 
 
 # ============================================================
@@ -548,8 +887,8 @@ elif seccion == "Calificaciones por sexo":
 
     st.caption(
         "Cada barra representa el 100% de aspirantes de ese sexo. "
-        "La distribución permite comparar la concentración de promedios "
-        "sin que afecte el tamaño distinto de cada grupo."
+        "La comparación es proporcional, aunque los grupos tengan "
+        "cantidades distintas de aspirantes."
     )
 
     orden_rangos = [
@@ -604,7 +943,6 @@ elif seccion == "Calificaciones por sexo":
         .transform(lambda x: (x / x.sum()) * 100)
     )
 
-    # Muestra etiquetas solo en segmentos visibles.
     tabla_sexo_promedio["Etiqueta"] = tabla_sexo_promedio[
         "Porcentaje"
     ].apply(
@@ -770,6 +1108,7 @@ elif seccion == "Lista por carrera":
         "Promedio_original",
         "Promedio_normalizado_100",
         "Estatus_promedio",
+        "Estado_procedencia",
         "Observaciones"
     ]
 
@@ -928,9 +1267,8 @@ elif seccion == "Base integrada":
     st.subheader("Base integrada de aspirantes")
 
     st.caption(
-        "La base incluye todos los registros de las hojas del archivo "
-        "en un solo DataFrame. Se preservan los encabezados originales "
-        "y se agregan variables para el análisis."
+        "Incluye todas las hojas en un solo DataFrame. Conserva los "
+        "encabezados originales y agrega variables para los análisis."
     )
 
     st.dataframe(
