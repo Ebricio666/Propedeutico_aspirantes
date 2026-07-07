@@ -47,6 +47,17 @@ def limpiar_texto(valor):
     return re.sub(r"\s+", " ", texto)
 
 
+def limpiar_texto_visible(valor):
+    """Conserva mayúsculas originales, pero limpia saltos y espacios."""
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).replace("\n", " ")
+    texto = re.sub(r"\s+", " ", texto).strip()
+
+    return texto
+
+
 def nombres_unicos(encabezados):
     """
     Conserva encabezados originales.
@@ -230,8 +241,8 @@ def clasificar_rango_promedio(valor):
 
 def clasificar_estado_procedencia(valor):
     """
-    Identifica un estado por palabras dentro del nombre de la escuela.
-    Cuando no puede identificarlo, asigna Colima por criterio del proyecto.
+    Identifica un estado por palabras dentro de la escuela.
+    Los registros no identificados se consideran Colima.
     """
 
     if pd.isna(valor):
@@ -242,133 +253,73 @@ def clasificar_estado_procedencia(valor):
     if texto in ["", "nan", "none", "escuela de procedencia"]:
         return "Sin dato"
 
-    # --------------------------------------------------------
-    # COLIMA
-    # --------------------------------------------------------
     palabras_colima = [
         "colima",
         "villa de alvarez",
-        "villa de álvarez",
         "tecoman",
-        "tecomán",
         "manzanillo",
         "comala",
         "cuauhtemoc",
-        "cuauhtémoc",
         "coquimatlan",
-        "coquimatlán",
         "armeria",
-        "armería",
         "minatitlan",
-        "minatitlán",
         "ixtlahuacan",
-        "ixtlahuacán",
         "zacualpan",
         "lo de villa",
         "el chanal",
         "udec",
         "universidad de colima",
-        "bachillerato 1",
-        "bachillerato 2",
-        "bachillerato 3",
-        "bachillerato 4",
-        "bachillerato 5",
-        "bachillerato 6",
-        "bachillerato 7",
-        "bachillerato 8",
-        "bachillerato 9",
-        "bachillerato 10",
-        "bachillerato 11",
-        "bachillerato 12",
-        "bachillerato 13",
-        "bachillerato 14",
-        "bachillerato 15",
-        "bachillerato 16",
-        "bachillerato 17",
-        "bachillerato 18",
-        "bachillerato 19",
-        "bachillerato 20",
-        "bachillerato 21",
-        "bachillerato 22",
-        "bachillerato 23",
-        "bachillerato 24",
-        "bachillerato 25",
-        "bachillerato 26",
-        "bachillerato 27",
-        "bachillerato 28",
-        "bachillerato 29",
-        "bachillerato 30"
+        "u de c",
+        "bachillerato"
     ]
 
     if any(palabra in texto for palabra in palabras_colima):
         return "Colima"
 
-    # --------------------------------------------------------
-    # JALISCO
-    # --------------------------------------------------------
     palabras_jalisco = [
         "jalisco",
         " jal.",
         "tuxpan",
         "cihuatlan",
-        "cihuatlán",
         "autlan",
-        "autlán",
         "guadalajara",
         "zapopan",
         "tonala",
-        "tonalá",
         "sayula",
         "zapotiltic",
         "zapotlan",
-        "zapotlán",
         "ciudad guzman",
-        "ciudad guzmán",
         "tequila",
         "casimiro castillo",
         "el grullo",
         "union de tula",
-        "unión de tula",
         "tamazula",
-        "teocuitatlan",
-        "teocuitatlán"
+        "teocuitatlan"
     ]
 
     if any(palabra in texto for palabra in palabras_jalisco):
         return "Jalisco"
 
-    # --------------------------------------------------------
-    # MICHOACÁN
-    # --------------------------------------------------------
     palabras_michoacan = [
         "michoacan",
-        "michoacán",
         " mich.",
         "coahuayana",
         "coalcoman",
-        "coalcomán",
         "morelia",
         "zamora",
         "lazaro cardenas",
-        "lázaro cárdenas",
         "uruapan",
         "apatzingan",
-        "apatzingán",
-        "maravatio",
-        "maravatío"
+        "maravatio"
     ]
 
     if any(palabra in texto for palabra in palabras_michoacan):
         return "Michoacán"
 
-    # --------------------------------------------------------
-    # NAYARIT
-    # --------------------------------------------------------
     palabras_nayarit = [
         "nayarit",
         "tepic",
         "bahia de banderas",
-        "bahía de banderas",
         "santiago ixcuintla",
         "compostela"
     ]
@@ -376,13 +327,9 @@ def clasificar_estado_procedencia(valor):
     if any(palabra in texto for palabra in palabras_nayarit):
         return "Nayarit"
 
-    # --------------------------------------------------------
-    # GUANAJUATO
-    # --------------------------------------------------------
     palabras_guanajuato = [
         "guanajuato",
         "leon",
-        "león",
         "irapuato",
         "celaya",
         "salamanca"
@@ -391,39 +338,26 @@ def clasificar_estado_procedencia(valor):
     if any(palabra in texto for palabra in palabras_guanajuato):
         return "Guanajuato"
 
-    # --------------------------------------------------------
-    # NUEVO LEÓN
-    # --------------------------------------------------------
     palabras_nuevo_leon = [
         "nuevo leon",
-        "nuevo león",
         "monterrey",
         "san nicolas",
-        "san nicolás",
         "guadalupe n.l."
     ]
 
     if any(palabra in texto for palabra in palabras_nuevo_leon):
         return "Nuevo León"
 
-    # --------------------------------------------------------
-    # SINALOA
-    # --------------------------------------------------------
     palabras_sinaloa = [
         "sinaloa",
         "culiacan",
-        "culiacán",
         "mazatlan",
-        "mazatlán",
         "los mochis"
     ]
 
     if any(palabra in texto for palabra in palabras_sinaloa):
         return "Sinaloa"
 
-    # --------------------------------------------------------
-    # OTROS ESTADOS
-    # --------------------------------------------------------
     if "durango" in texto:
         return "Durango"
 
@@ -444,17 +378,44 @@ def clasificar_estado_procedencia(valor):
 
     if any(
         palabra in texto
-        for palabra in ["canada", "canadá", "usa", "united states"]
+        for palabra in ["canada", "usa", "united states"]
     ):
         return "Internacional"
 
-    # Por instrucción, las escuelas no identificadas se consideran Colima.
     return "Colima"
+
+
+def normalizar_escuela_procedencia(valor):
+    """
+    Agrupa todas las variantes de Universidad de Colima en una sola categoría.
+    Las demás escuelas se conservan con su nombre original limpio.
+    """
+
+    if pd.isna(valor):
+        return "Sin dato"
+
+    escuela_visible = limpiar_texto_visible(valor)
+    escuela_limpia = limpiar_texto(valor)
+
+    if escuela_limpia in ["", "nan", "none", "escuela de procedencia"]:
+        return "Sin dato"
+
+    palabras_udec = [
+        "universidad de colima",
+        "u de c",
+        "udec",
+        "bachillerato"
+    ]
+
+    if any(palabra in escuela_limpia for palabra in palabras_udec):
+        return "Universidad de Colima (U de C)"
+
+    return escuela_visible
 
 
 def procesar_hoja(contenido_archivo, nombre_hoja):
     """
-    Lee una hoja, conserva todos sus encabezados y añade Carrera.
+    Lee una hoja, conserva encabezados y agrega Carrera.
     """
 
     archivo = io.BytesIO(contenido_archivo)
@@ -477,13 +438,13 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
 
     carrera = obtener_nombre_carrera(nombre_hoja, df_crudo)
 
-    encabezados = df_crudo.iloc[fila_encabezados].tolist()
-    encabezados = nombres_unicos(encabezados)
+    encabezados = nombres_unicos(
+        df_crudo.iloc[fila_encabezados].tolist()
+    )
 
     df = df_crudo.iloc[fila_encabezados + 1:].copy()
     df.columns = encabezados
 
-    # Solo elimina filas completamente vacías.
     df = df.dropna(how="all").copy()
 
     columna_id = encontrar_columna(
@@ -494,7 +455,6 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
     if columna_id is not None:
         df = df[df[columna_id].notna()].copy()
 
-    # Variables agregadas, conservando todos los encabezados originales.
     df["Carrera"] = carrera
     df["Hoja_origen"] = nombre_hoja
 
@@ -660,21 +620,22 @@ columna_escuela = encontrar_columna(
 
 if columna_escuela is not None:
 
-    df_general["Escuela_procedencia_limpia"] = (
-        df_general[columna_escuela]
-        .astype(str)
-        .str.replace("\n", " ", regex=False)
-        .str.replace(r"\s+", " ", regex=True)
-        .str.strip()
-    )
+    df_general["Escuela_procedencia_limpia"] = df_general[
+        columna_escuela
+    ].apply(limpiar_texto_visible)
 
     df_general["Estado_procedencia"] = df_general[
         columna_escuela
     ].apply(clasificar_estado_procedencia)
 
+    df_general["Escuela_procedencia_categoria"] = df_general[
+        columna_escuela
+    ].apply(normalizar_escuela_procedencia)
+
 else:
     df_general["Escuela_procedencia_limpia"] = np.nan
     df_general["Estado_procedencia"] = "Sin dato"
+    df_general["Escuela_procedencia_categoria"] = "Sin dato"
 
 
 # ============================================================
@@ -723,6 +684,34 @@ if not resumen_estado.empty:
     ).round(2)
 
 
+resumen_escuela = (
+    df_general[
+        ~df_general["Escuela_procedencia_categoria"].isin(["Sin dato"])
+    ]
+    .groupby("Escuela_procedencia_categoria", dropna=False)
+    .size()
+    .reset_index(name="Aspirantes")
+    .sort_values("Aspirantes", ascending=False)
+)
+
+if not resumen_escuela.empty:
+    resumen_escuela["Porcentaje"] = (
+        resumen_escuela["Aspirantes"]
+        / resumen_escuela["Aspirantes"].sum()
+        * 100
+    ).round(2)
+
+    resumen_escuela["Etiqueta"] = resumen_escuela.apply(
+        lambda fila: (
+            f"{fila['Escuela_procedencia_categoria']}<br>"
+            f"{fila['Porcentaje']:.1f}%"
+            if fila["Porcentaje"] >= 4
+            else ""
+        ),
+        axis=1
+    )
+
+
 # ============================================================
 # SECCIÓN 1 · PANORAMA GENERAL
 # ============================================================
@@ -757,11 +746,8 @@ if seccion == "Panorama general":
 
     st.markdown("### Perfil general de ingreso")
 
-    col_carrera, col_procedencia = st.columns(2)
+    col_carrera, col_estado = st.columns(2)
 
-    # --------------------------------------------------------
-    # PASTEL DE CARRERAS
-    # --------------------------------------------------------
     with col_carrera:
 
         st.markdown("#### Aspirantes por carrera")
@@ -795,17 +781,12 @@ if seccion == "Panorama general":
             use_container_width=True
         )
 
-    # --------------------------------------------------------
-    # PASTEL DE PROCEDENCIA ESTATAL
-    # --------------------------------------------------------
-    with col_procedencia:
+    with col_estado:
 
         st.markdown("#### Procedencia por estado")
 
         if resumen_estado.empty:
-            st.info(
-                "No fue posible identificar estados de procedencia."
-            )
+            st.info("No fue posible identificar estados de procedencia.")
 
         else:
             fig_estado = px.pie(
@@ -837,6 +818,44 @@ if seccion == "Panorama general":
                 use_container_width=True
             )
 
+    st.markdown("### Escuela de procedencia")
+
+    if resumen_escuela.empty:
+        st.info("No se encontraron escuelas de procedencia registradas.")
+
+    else:
+        fig_escuela = px.pie(
+            resumen_escuela,
+            names="Escuela_procedencia_categoria",
+            values="Aspirantes",
+            hole=0.45,
+            custom_data=["Porcentaje"]
+        )
+
+        fig_escuela.update_traces(
+            text=resumen_escuela["Etiqueta"],
+            textinfo="text",
+            textposition="inside",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Aspirantes: %{value}<br>"
+                "Porcentaje: %{customdata[0]:.1f}%"
+                "<extra></extra>"
+            )
+        )
+
+        fig_escuela.update_layout(
+            title="Distribución de aspirantes por escuela de procedencia",
+            legend_title_text="Escuela",
+            margin=dict(t=70, b=20, l=20, r=20),
+            height=540
+        )
+
+        st.plotly_chart(
+            fig_escuela,
+            use_container_width=True
+        )
+
     st.markdown("### Detalle de participación")
 
     col_tabla_carrera, col_tabla_estado = st.columns(2)
@@ -866,15 +885,35 @@ if seccion == "Panorama general":
         if not resumen_estado.empty:
 
             tabla_estado = resumen_estado.rename(
-                columns={
-                    "Estado_procedencia": "Estado"
-                }
+                columns={"Estado_procedencia": "Estado"}
             )
 
             st.dataframe(
                 tabla_estado[
                     [
                         "Estado",
+                        "Aspirantes",
+                        "Porcentaje"
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
+
+    with st.expander("Ver detalle por escuela de procedencia"):
+
+        if not resumen_escuela.empty:
+
+            tabla_escuela = resumen_escuela.rename(
+                columns={
+                    "Escuela_procedencia_categoria": "Escuela de procedencia"
+                }
+            )
+
+            st.dataframe(
+                tabla_escuela[
+                    [
+                        "Escuela de procedencia",
                         "Aspirantes",
                         "Porcentaje"
                     ]
@@ -1112,10 +1151,11 @@ elif seccion == "Lista por carrera":
         "Genero",
         "Sexo",
         "Escuela de Procedencia",
+        "Escuela_procedencia_categoria",
+        "Estado_procedencia",
         "Promedio_original",
         "Promedio_normalizado_100",
         "Estatus_promedio",
-        "Estado_procedencia",
         "Observaciones"
     ]
 
