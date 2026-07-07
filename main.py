@@ -10,7 +10,7 @@ import streamlit as st
 
 
 # ============================================================
-# CONFIGURACIÓN
+# CONFIGURACIÓN GENERAL
 # ============================================================
 
 st.set_page_config(
@@ -47,7 +47,7 @@ def limpiar_texto(valor):
 
 
 def limpiar_texto_visible(valor):
-    """Limpia saltos de línea y espacios sin cambiar mayúsculas."""
+    """Limpia saltos de línea y espacios sin modificar mayúsculas."""
     if pd.isna(valor):
         return ""
 
@@ -61,6 +61,7 @@ def nombres_unicos(encabezados):
     resultado = []
 
     for posicion, encabezado in enumerate(encabezados, start=1):
+
         if pd.isna(encabezado) or str(encabezado).strip() == "":
             nombre = f"Columna_sin_nombre_{posicion}"
         else:
@@ -93,6 +94,7 @@ def buscar_fila_encabezados(df_crudo):
     limite = min(len(df_crudo), 40)
 
     for indice in range(limite):
+
         valores = [
             limpiar_texto(valor)
             for valor in df_crudo.iloc[indice].tolist()
@@ -115,10 +117,13 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
     limite = min(len(df_crudo), 15)
 
     for indice in range(limite):
+
         fila = df_crudo.iloc[indice].tolist()
 
         for posicion, valor in enumerate(fila):
+
             if limpiar_texto(valor) == "carrera":
+
                 if posicion + 1 < len(fila):
                     posible_carrera = fila[posicion + 1]
 
@@ -129,7 +134,7 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
 
 
 def encontrar_columna(df, posibles_nombres):
-    """Encuentra una columna aunque cambien acentos, espacios o mayúsculas."""
+    """Encuentra columnas ignorando acentos, espacios y mayúsculas."""
 
     columnas_limpias = {
         limpiar_texto(columna): columna
@@ -137,12 +142,14 @@ def encontrar_columna(df, posibles_nombres):
     }
 
     for posible in posibles_nombres:
+
         posible_limpio = limpiar_texto(posible)
 
         if posible_limpio in columnas_limpias:
             return columnas_limpias[posible_limpio]
 
         for columna_limpia, columna_original in columnas_limpias.items():
+
             if posible_limpio in columna_limpia:
                 return columna_original
 
@@ -155,7 +162,7 @@ def encontrar_columna(df, posibles_nombres):
 
 def convertir_promedio(valor):
     """
-    Convierte calificaciones a escala 0-100.
+    Normaliza calificaciones a escala 0-100.
 
     0 a 10      -> multiplica por 10
     10 a 100    -> conserva
@@ -175,6 +182,7 @@ def convertir_promedio(valor):
 
     try:
         numero = float(texto)
+
     except (TypeError, ValueError):
         return np.nan, "Dato dudoso: no numérico"
 
@@ -213,7 +221,7 @@ def clasificar_rango_promedio(valor):
 # ============================================================
 
 def normalizar_sexo(valor):
-    """Homologa las distintas formas de registrar sexo o género."""
+    """Homologa registros de sexo o género."""
 
     if pd.isna(valor):
         return "Sin especificar"
@@ -235,7 +243,7 @@ def normalizar_sexo(valor):
 
 def clasificar_estado_procedencia(valor):
     """
-    Clasifica el estado según el nombre de escuela.
+    Clasifica el estado a partir del texto de la escuela.
 
     Las escuelas sin referencia territorial clara se consideran Colima.
     """
@@ -348,6 +356,7 @@ def obtener_numero_institucion(texto, expresiones):
     """Extrae el número de plantel si existe."""
 
     for expresion in expresiones:
+
         coincidencia = re.search(expresion, texto)
 
         if coincidencia:
@@ -382,10 +391,11 @@ def normalizar_escuela_procedencia(valor):
         or "u de c" in texto
         or "udec" in texto
         or "bachillerato udec" in texto
+        or re.search(r"\bbachillerato\s*([1-9]|[12][0-9]|30)\b", texto)
     ):
         return "Universidad de Colima (U de C)"
 
-    # Telebachilleratos
+    # Telebachillerato
     if (
         "telebachillerato" in texto
         or "tele bachillerato" in texto
@@ -407,6 +417,7 @@ def normalizar_escuela_procedencia(valor):
 
     # CBTis
     if "cbtis" in texto_compacto or "cbti" in texto_compacto:
+
         numero = obtener_numero_institucion(
             texto,
             [
@@ -422,6 +433,7 @@ def normalizar_escuela_procedencia(valor):
 
     # CETis
     if "cetis" in texto_compacto:
+
         numero = obtener_numero_institucion(
             texto,
             [r"cetis\s*#?\s*(\d+)"]
@@ -434,6 +446,7 @@ def normalizar_escuela_procedencia(valor):
 
     # CBTA
     if "cbta" in texto_compacto:
+
         numero = obtener_numero_institucion(
             texto,
             [r"cbta\s*#?\s*(\d+)"]
@@ -446,6 +459,7 @@ def normalizar_escuela_procedencia(valor):
 
     # EMSAD
     if "emsad" in texto_compacto:
+
         numero = obtener_numero_institucion(
             texto,
             [r"emsad\s*#?\s*(\d+)"]
@@ -550,6 +564,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
     )
 
     if columna_promedio is not None:
+
         df["Promedio_original"] = df[columna_promedio]
 
         resultado = df[columna_promedio].apply(convertir_promedio)
@@ -576,7 +591,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
 
 @st.cache_data(show_spinner=False)
 def procesar_archivo_excel(contenido_archivo):
-    """Integra todas las hojas del archivo en un solo DataFrame."""
+    """Integra todas las hojas en un único DataFrame."""
 
     archivo = io.BytesIO(contenido_archivo)
     excel = pd.ExcelFile(archivo)
@@ -585,6 +600,7 @@ def procesar_archivo_excel(contenido_archivo):
     bitacora = []
 
     for hoja in excel.sheet_names:
+
         df_hoja, resultado = procesar_hoja(
             contenido_archivo,
             hoja
@@ -671,7 +687,7 @@ def crear_resumen_procedencia(df):
 
 
 def crear_resumen_bachillerato(df):
-    """Crea Top 10 de bachilleratos y agrupa el resto en Otros."""
+    """Crea Top 10 de bachilleratos y agrupa el resto como Otros."""
 
     resumen = (
         df[df["Bachillerato_procedencia"] != "Sin dato"]
@@ -707,49 +723,101 @@ def crear_resumen_bachillerato(df):
     return top_10
 
 
-def crear_promedio_por_bachillerato(df):
+def crear_distribucion_calificaciones_bachillerato(df, top_n=10):
     """
-    Calcula promedio de ingreso para los 10 bachilleratos
-    con mayor número de aspirantes.
+    Crea barras apiladas 100% por bachillerato.
+
+    Muestra cómo se distribuyen las calificaciones dentro de cada escuela,
+    no solo un promedio general.
     """
 
-    resumen = (
-        df[
+    orden_rangos = ["60-69", "70-79", "80-89", "90-100"]
+
+    df_valido = df[
+        (
             df["Bachillerato_procedencia"] != "Sin dato"
-        ]
-        .dropna(subset=["Promedio_normalizado_100"])
-        .groupby("Bachillerato_procedencia")
-        .agg(
-            Aspirantes=("Bachillerato_procedencia", "size"),
-            Promedio=("Promedio_normalizado_100", "mean")
         )
-        .reset_index()
-    )
+        &
+        (
+            df["Rango_promedio"].isin(orden_rangos)
+        )
+    ].copy()
 
-    if resumen.empty:
+    if df_valido.empty:
         return pd.DataFrame()
 
-    top_10 = (
-        resumen
-        .sort_values("Aspirantes", ascending=False)
-        .head(10)
-        .copy()
+    total_por_bach = (
+        df_valido
+        .groupby("Bachillerato_procedencia")
+        .size()
+        .reset_index(name="Total")
+        .sort_values("Total", ascending=False)
     )
 
-    top_10["Promedio"] = top_10["Promedio"].round(2)
+    top_bachilleratos = total_por_bach.head(top_n).copy()
 
-    top_10["Rango_promedio_bach"] = top_10["Promedio"].apply(
-        clasificar_rango_promedio
+    escuelas_top = top_bachilleratos[
+        "Bachillerato_procedencia"
+    ].tolist()
+
+    df_valido = df_valido[
+        df_valido["Bachillerato_procedencia"].isin(escuelas_top)
+    ].copy()
+
+    tabla = (
+        df_valido
+        .groupby(
+            [
+                "Bachillerato_procedencia",
+                "Rango_promedio"
+            ]
+        )
+        .size()
+        .reset_index(name="Aspirantes")
     )
 
-    top_10["Etiqueta"] = top_10.apply(
+    tabla = tabla.merge(
+        top_bachilleratos,
+        on="Bachillerato_procedencia",
+        how="left"
+    )
+
+    tabla["Porcentaje"] = (
+        tabla["Aspirantes"]
+        / tabla["Total"]
+        * 100
+    )
+
+    tabla["Rango_promedio"] = pd.Categorical(
+        tabla["Rango_promedio"],
+        categories=orden_rangos,
+        ordered=True
+    )
+
+    tabla["Etiqueta"] = tabla["Porcentaje"].apply(
+        lambda valor: f"{valor:.0f}%" if valor >= 8 else ""
+    )
+
+    tabla["Escuela_etiqueta"] = tabla.apply(
         lambda fila: (
-            f"{fila['Promedio']:.1f} · n={int(fila['Aspirantes'])}"
+            f"{fila['Bachillerato_procedencia']} "
+            f"(n={int(fila['Total'])})"
         ),
         axis=1
     )
 
-    return top_10.sort_values("Promedio", ascending=True)
+    orden_escuelas = [
+        f"{fila['Bachillerato_procedencia']} (n={int(fila['Total'])})"
+        for _, fila in top_bachilleratos.iterrows()
+    ]
+
+    tabla["Escuela_etiqueta"] = pd.Categorical(
+        tabla["Escuela_etiqueta"],
+        categories=orden_escuelas[::-1],
+        ordered=True
+    )
+
+    return tabla
 
 
 # ============================================================
@@ -792,11 +860,6 @@ def mostrar_grafica_calificaciones(df):
             "70-79": "#F39C12",
             "80-89": "#F1C40F",
             "90-100": "#27AE60"
-        },
-        labels={
-            "Sexo_normalizado": "Sexo",
-            "Porcentaje": "Porcentaje de aspirantes",
-            "Rango_promedio": "Rango de promedio"
         }
     )
 
@@ -918,67 +981,79 @@ def mostrar_grafica_bachillerato(df):
     )
 
 
-def mostrar_grafica_promedio_bachillerato(df):
+def mostrar_grafica_semaforo_bachillerato(df):
     """
-    Muestra barras horizontales con el promedio de ingreso
-    de los 10 bachilleratos con más aspirantes.
+    Muestra la distribución semáforo de calificaciones
+    dentro de cada bachillerato.
     """
 
-    resumen = crear_promedio_por_bachillerato(df)
+    tabla = crear_distribucion_calificaciones_bachillerato(
+        df,
+        top_n=10
+    )
 
-    if resumen.empty:
-        st.info("No hay suficientes promedios para relacionar con bachillerato.")
+    if tabla.empty:
+        st.info(
+            "No hay suficientes promedios válidos para relacionar "
+            "con los bachilleratos."
+        )
         return
 
     fig = px.bar(
-        resumen,
-        x="Promedio",
-        y="Bachillerato_procedencia",
+        tabla,
+        x="Porcentaje",
+        y="Escuela_etiqueta",
+        color="Rango_promedio",
         orientation="h",
-        color="Rango_promedio_bach",
+        barmode="stack",
         text="Etiqueta",
-        custom_data=["Aspirantes"],
-        color_discrete_map={
-            "60-69": "#E74C3C",
-            "70-79": "#F39C12",
-            "80-89": "#F1C40F",
-            "90-100": "#27AE60"
-        },
+        custom_data=["Aspirantes", "Total"],
         category_orders={
-            "Rango_promedio_bach": [
+            "Rango_promedio": [
                 "60-69",
                 "70-79",
                 "80-89",
                 "90-100"
             ]
         },
-        labels={
-            "Bachillerato_procedencia": "Bachillerato",
-            "Promedio": "Promedio de ingreso",
-            "Rango_promedio_bach": "Rango de promedio"
+        color_discrete_map={
+            "60-69": "#E74C3C",
+            "70-79": "#F39C12",
+            "80-89": "#F1C40F",
+            "90-100": "#27AE60"
         }
     )
 
     fig.update_traces(
-        textposition="outside",
+        textposition="inside",
+        insidetextanchor="middle",
         hovertemplate=(
             "<b>Bachillerato:</b> %{y}<br>"
-            "<b>Promedio:</b> %{x:.2f}<br>"
-            "<b>Aspirantes:</b> %{customdata[0]}<br>"
+            "<b>Rango:</b> %{fullData.name}<br>"
+            "<b>Aspirantes:</b> %{customdata[0]} de %{customdata[1]}<br>"
+            "<b>Porcentaje:</b> %{x:.1f}%"
             "<extra></extra>"
         )
     )
 
     fig.update_layout(
-        title="Promedio de ingreso por bachillerato",
+        title="Distribución de calificaciones por bachillerato",
         legend_title_text="Semáforo",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.08,
+            xanchor="center",
+            x=0.5
+        ),
         xaxis=dict(
-            title="Promedio de ingreso",
-            range=[0, 100]
+            title="Porcentaje de aspirantes",
+            range=[0, 100],
+            ticksuffix="%"
         ),
         yaxis_title="",
-        height=460,
-        margin=dict(t=70, b=30, l=180, r=70)
+        height=560,
+        margin=dict(t=100, b=30, l=250, r=30)
     )
 
     st.plotly_chart(
@@ -1044,6 +1119,7 @@ columna_escuela = encontrar_columna(
 )
 
 if columna_escuela is not None:
+
     df_general["Estado_procedencia"] = df_general[
         columna_escuela
     ].apply(clasificar_estado_procedencia)
@@ -1097,15 +1173,15 @@ with tab_general:
     st.markdown("### Lugar de procedencia")
     mostrar_grafica_procedencia(df_general)
 
-    st.markdown("### Bachillerato de procedencia y promedio de ingreso")
+    st.markdown("### Bachillerato de procedencia y distribución de calificaciones")
 
-    col_bachillerato, col_promedio = st.columns(2)
+    col_bachillerato, col_semaforo = st.columns(2)
 
     with col_bachillerato:
         mostrar_grafica_bachillerato(df_general)
 
-    with col_promedio:
-        mostrar_grafica_promedio_bachillerato(df_general)
+    with col_semaforo:
+        mostrar_grafica_semaforo_bachillerato(df_general)
 
 
 # ============================================================
@@ -1159,12 +1235,15 @@ with tab_carrera:
     st.markdown("### Distribución de calificaciones por sexo")
     mostrar_grafica_calificaciones(df_carrera)
 
-    col_estado, col_bachillerato = st.columns(2)
+    st.markdown("### Lugar de procedencia")
+    mostrar_grafica_procedencia(df_carrera)
 
-    with col_estado:
-        st.markdown("### Lugar de procedencia")
-        mostrar_grafica_procedencia(df_carrera)
+    st.markdown("### Bachillerato de procedencia y distribución de calificaciones")
+
+    col_bachillerato, col_semaforo = st.columns(2)
 
     with col_bachillerato:
-        st.markdown("### Bachillerato de procedencia")
         mostrar_grafica_bachillerato(df_carrera)
+
+    with col_semaforo:
+        mostrar_grafica_semaforo_bachillerato(df_carrera)
