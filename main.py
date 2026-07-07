@@ -197,7 +197,7 @@ def convertir_promedio(valor):
 
 
 def clasificar_rango_promedio(valor):
-    """Clasifica el promedio en rangos semáforo."""
+    """Clasifica promedios en rangos tipo semáforo."""
 
     if pd.isna(valor):
         return "Sin dato"
@@ -244,8 +244,8 @@ def normalizar_sexo(valor):
 
 def clasificar_estado_procedencia(valor):
     """
-    Clasifica el estado usando el texto de la escuela.
-    Cuando no identifica otro estado, se considera Colima.
+    Clasifica el estado usando el nombre de la institución.
+    Cuando no se identifica otro estado, se considera Colima.
     """
 
     if pd.isna(valor):
@@ -353,7 +353,7 @@ def clasificar_estado_procedencia(valor):
 # ============================================================
 
 def obtener_numero_institucion(texto, expresiones):
-    """Extrae el número de plantel cuando existe."""
+    """Extrae número de plantel cuando existe."""
 
     for expresion in expresiones:
 
@@ -366,7 +366,7 @@ def obtener_numero_institucion(texto, expresiones):
 
 
 def normalizar_escuela_procedencia(valor):
-    """Agrupa variantes de una misma institución."""
+    """Agrupa variantes de instituciones similares."""
 
     if pd.isna(valor):
         return "Sin dato"
@@ -609,7 +609,7 @@ def procesar_archivo_excel(contenido_archivo):
 
 
 # ============================================================
-# TABLAS PARA GRÁFICAS
+# TABLAS AUXILIARES
 # ============================================================
 
 def crear_tabla_calificaciones_por_sexo(df):
@@ -650,54 +650,8 @@ def crear_tabla_calificaciones_por_sexo(df):
     return tabla
 
 
-def crear_resumen_bachillerato(df):
-    """Crea Top 10 de bachilleratos, agrupa resto como Otros y añade n."""
-
-    resumen = (
-        df[df["Bachillerato_procedencia"] != "Sin dato"]
-        .groupby("Bachillerato_procedencia")
-        .size()
-        .reset_index(name="Aspirantes")
-        .sort_values("Aspirantes", ascending=False)
-    )
-
-    if resumen.empty:
-        return pd.DataFrame()
-
-    top_10 = resumen.head(10).copy()
-    restantes = resumen.iloc[10:].copy()
-
-    if not restantes.empty:
-
-        fila_otros = pd.DataFrame({
-            "Bachillerato_procedencia": ["Otros"],
-            "Aspirantes": [restantes["Aspirantes"].sum()]
-        })
-
-        top_10 = pd.concat(
-            [top_10, fila_otros],
-            ignore_index=True
-        )
-
-    top_10["Porcentaje"] = (
-        top_10["Aspirantes"]
-        / top_10["Aspirantes"].sum()
-        * 100
-    ).round(2)
-
-    top_10["Etiqueta_bachillerato"] = top_10.apply(
-        lambda fila: (
-            f"{fila['Bachillerato_procedencia']} · "
-            f"n={int(fila['Aspirantes'])}"
-        ),
-        axis=1
-    )
-
-    return top_10
-
-
 def crear_distribucion_calificaciones_bachillerato(df, top_n=10):
-    """Crea barras apiladas semáforo dentro de cada bachillerato."""
+    """Crea barras apiladas tipo semáforo por bachillerato."""
 
     orden_rangos = ["60-69", "70-79", "80-89", "90-100"]
 
@@ -789,7 +743,7 @@ def crear_distribucion_calificaciones_bachillerato(df, top_n=10):
 
 
 def crear_mapa_colores_carreras(df):
-    """Asigna un color fijo por carrera en los dos Sunburst."""
+    """Asigna el mismo color a cada carrera en ambos Sunburst."""
 
     paleta = (
         px.colors.qualitative.Alphabet
@@ -889,42 +843,6 @@ def mostrar_grafica_calificaciones(df):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def mostrar_grafica_bachillerato(df):
-    """Muestra pastel Top 10 de bachilleratos y Otros con n incluido."""
-
-    resumen = crear_resumen_bachillerato(df)
-
-    if resumen.empty:
-        st.info("No hay bachilleratos de procedencia registrados.")
-        return
-
-    fig = px.pie(
-        resumen,
-        names="Etiqueta_bachillerato",
-        values="Aspirantes",
-        hole=0.45,
-        custom_data=["Porcentaje"]
-    )
-
-    fig.update_traces(
-        textposition="inside",
-        textinfo="percent",
-        hovertemplate=(
-            "<b>%{label}</b><br>"
-            "Porcentaje: %{customdata[0]:.1f}%"
-            "<extra></extra>"
-        )
-    )
-
-    fig.update_layout(
-        title="Top 10 bachilleratos y Otros",
-        legend_title_text="Bachillerato",
-        height=560
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
 def mostrar_grafica_semaforo_bachillerato(df):
     """Muestra distribución semáforo por bachillerato."""
 
@@ -993,8 +911,8 @@ def mostrar_grafica_semaforo_bachillerato(df):
             ticksuffix="%"
         ),
         yaxis_title="",
-        height=560,
-        margin=dict(t=100, b=30, l=260, r=30)
+        height=720,
+        margin=dict(t=100, b=40, l=320, r=30)
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -1005,10 +923,7 @@ def mostrar_grafica_semaforo_bachillerato(df):
 # ============================================================
 
 def mostrar_concentrado_estados(df, max_estados=5):
-    """
-    Muestra el estado de procedencia como indicadores compactos.
-    Conserva los principales estados y agrupa el resto como Otros.
-    """
+    """Muestra los principales estados como indicadores compactos."""
 
     resumen = (
         df[
@@ -1027,6 +942,7 @@ def mostrar_concentrado_estados(df, max_estados=5):
     total = resumen["Aspirantes"].sum()
 
     if len(resumen) > max_estados:
+
         principales = resumen.head(max_estados - 1).copy()
         otros = resumen.iloc[max_estados - 1:]["Aspirantes"].sum()
 
@@ -1049,6 +965,7 @@ def mostrar_concentrado_estados(df, max_estados=5):
     columnas = st.columns(len(resumen))
 
     for columna, (_, fila) in zip(columnas, resumen.iterrows()):
+
         columna.metric(
             fila["Estado_procedencia"],
             f"{int(fila['Aspirantes']):,}",
@@ -1058,11 +975,16 @@ def mostrar_concentrado_estados(df, max_estados=5):
 
 
 # ============================================================
-# SUNBURST: UNIVERSIDAD DE COLIMA -> CARRERAS
+# SUNBURST: UDE C -> CARRERAS
 # ============================================================
 
 def mostrar_sunburst_udec(df, mapa_colores_carreras):
-    """Muestra flujo Universidad de Colima -> carreras."""
+    """
+    Muestra Universidad de Colima -> carreras.
+
+    El porcentaje mostrado en cada carrera es respecto
+    al total de aspirantes provenientes de U de C.
+    """
 
     df_udec = df[
         df["Bachillerato_procedencia"]
@@ -1081,26 +1003,32 @@ def mostrar_sunburst_udec(df, mapa_colores_carreras):
         .sort_values("Aspirantes", ascending=False)
     )
 
+    total = int(resumen["Aspirantes"].sum())
+
     labels = ["Universidad de Colima (U de C)"]
     parents = [""]
-    values = [int(resumen["Aspirantes"].sum())]
+    values = [total]
     ids = ["root_udec"]
     colores = ["#595959"]
+    textos = [f"U de C<br>n={total}"]
 
     for indice, fila in resumen.reset_index(drop=True).iterrows():
 
         carrera = fila["Carrera"]
+        aspirantes = int(fila["Aspirantes"])
+        porcentaje = aspirantes / total * 100
 
         labels.append(carrera)
         parents.append("root_udec")
-        values.append(int(fila["Aspirantes"]))
+        values.append(aspirantes)
         ids.append(f"udec_carrera_{indice}")
 
         colores.append(
-            mapa_colores_carreras.get(
-                carrera,
-                "#9E9E9E"
-            )
+            mapa_colores_carreras.get(carrera, "#9E9E9E")
+        )
+
+        textos.append(
+            f"{carrera}<br>{porcentaje:.1f}%"
         )
 
     fig = go.Figure(
@@ -1109,6 +1037,8 @@ def mostrar_sunburst_udec(df, mapa_colores_carreras):
             labels=labels,
             parents=parents,
             values=values,
+            text=textos,
+            textinfo="text",
             branchvalues="total",
             marker=dict(
                 colors=colores,
@@ -1126,7 +1056,7 @@ def mostrar_sunburst_udec(df, mapa_colores_carreras):
 
     fig.update_layout(
         title="Universidad de Colima → carreras elegidas",
-        height=520,
+        height=560,
         margin=dict(t=70, b=20, l=20, r=20)
     )
 
@@ -1143,9 +1073,12 @@ def mostrar_sunburst_otros_bachilleratos(
     top_n=10
 ):
     """
-    Muestra flujo otros bachilleratos -> carreras.
+    Instituciones en escala de grises.
+    Carreras con colores fijos.
 
-    Instituciones en grises y carreras con colores fijos.
+    El porcentaje de una institución es respecto a todos los
+    aspirantes externos. El porcentaje de carrera es respecto
+    a cada institución de procedencia.
     """
 
     df_otros = df[
@@ -1196,59 +1129,75 @@ def mostrar_sunburst_otros_bachilleratos(
         .reset_index(name="Aspirantes")
     )
 
+    total_externos = int(resumen_escuelas["Aspirantes"].sum())
+
     tonos_gris = [
-        "#4A4A4A",
-        "#5A5A5A",
-        "#6A6A6A",
+        "#424242",
+        "#505050",
+        "#5E5E5E",
+        "#6C6C6C",
         "#7A7A7A",
-        "#8A8A8A",
-        "#9A9A9A",
-        "#AAAAAA",
-        "#BABABA",
-        "#CACACA",
-        "#DADADA",
-        "#707070"
+        "#888888",
+        "#969696",
+        "#A4A4A4",
+        "#B2B2B2",
+        "#C0C0C0",
+        "#6A6A6A"
     ]
 
     labels = ["Otros bachilleratos"]
     parents = [""]
-    values = [int(resumen_escuelas["Aspirantes"].sum())]
+    values = [total_externos]
     ids = ["root_otros"]
     colores = ["#303030"]
+    textos = [f"Otros<br>n={total_externos}"]
 
     ids_escuelas = {}
+    totales_escuelas = {}
 
     for indice, fila in resumen_escuelas.reset_index(drop=True).iterrows():
 
         escuela = fila["Escuela_sunburst"]
+        aspirantes = int(fila["Aspirantes"])
+        porcentaje = aspirantes / total_externos * 100
         id_escuela = f"escuela_{indice}"
 
         ids_escuelas[escuela] = id_escuela
+        totales_escuelas[escuela] = aspirantes
 
         labels.append(escuela)
         parents.append("root_otros")
-        values.append(int(fila["Aspirantes"]))
+        values.append(aspirantes)
         ids.append(id_escuela)
 
         colores.append(
             tonos_gris[indice % len(tonos_gris)]
         )
 
+        textos.append(
+            f"{escuela}<br>{porcentaje:.1f}%"
+        )
+
     for indice, fila in resumen_carreras.reset_index(drop=True).iterrows():
 
         carrera = fila["Carrera"]
         escuela = fila["Escuela_sunburst"]
+        aspirantes = int(fila["Aspirantes"])
+
+        total_escuela = totales_escuelas[escuela]
+        porcentaje = aspirantes / total_escuela * 100
 
         labels.append(carrera)
         parents.append(ids_escuelas[escuela])
-        values.append(int(fila["Aspirantes"]))
+        values.append(aspirantes)
         ids.append(f"carrera_{indice}")
 
         colores.append(
-            mapa_colores_carreras.get(
-                carrera,
-                "#9E9E9E"
-            )
+            mapa_colores_carreras.get(carrera, "#9E9E9E")
+        )
+
+        textos.append(
+            f"{carrera}<br>{porcentaje:.1f}%"
         )
 
     fig = go.Figure(
@@ -1257,6 +1206,8 @@ def mostrar_sunburst_otros_bachilleratos(
             labels=labels,
             parents=parents,
             values=values,
+            text=textos,
+            textinfo="text",
             branchvalues="total",
             marker=dict(
                 colors=colores,
@@ -1274,7 +1225,7 @@ def mostrar_sunburst_otros_bachilleratos(
 
     fig.update_layout(
         title="Otros bachilleratos → carreras elegidas",
-        height=520,
+        height=560,
         margin=dict(t=70, b=20, l=20, r=20)
     )
 
@@ -1399,16 +1350,9 @@ if seccion_activa == "📊 Análisis general":
     mostrar_concentrado_estados(df_general)
 
     st.markdown(
-        "## Bachillerato de procedencia y distribución de calificaciones"
+        "## Distribución de calificaciones por bachillerato"
     )
-
-    col_bachillerato, col_semaforo = st.columns(2)
-
-    with col_bachillerato:
-        mostrar_grafica_bachillerato(df_general)
-
-    with col_semaforo:
-        mostrar_grafica_semaforo_bachillerato(df_general)
+    mostrar_grafica_semaforo_bachillerato(df_general)
 
     st.markdown("## Origen académico y carrera elegida")
 
@@ -1483,13 +1427,6 @@ elif seccion_activa == "🎓 Análisis por carrera":
     mostrar_concentrado_estados(df_carrera)
 
     st.markdown(
-        "## Bachillerato de procedencia y distribución de calificaciones"
+        "## Distribución de calificaciones por bachillerato"
     )
-
-    col_bachillerato, col_semaforo = st.columns(2)
-
-    with col_bachillerato:
-        mostrar_grafica_bachillerato(df_carrera)
-
-    with col_semaforo:
-        mostrar_grafica_semaforo_bachillerato(df_carrera)
+    mostrar_grafica_semaforo_bachillerato(df_carrera)
