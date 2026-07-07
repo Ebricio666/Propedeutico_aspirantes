@@ -19,10 +19,9 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🎓 Módulo 1 · Historial de Aspirantes")
+st.title("🎓 Historial de Aspirantes")
 st.caption(
-    "Integración de registros, análisis de calificaciones y perfil "
-    "de procedencia académica de aspirantes."
+    "Análisis general y análisis por carrera de aspirantes de nuevo ingreso."
 )
 
 
@@ -31,7 +30,7 @@ st.caption(
 # ============================================================
 
 def limpiar_texto(valor):
-    """Convierte texto a minúsculas, sin acentos y espacios repetidos."""
+    """Convierte texto a minúsculas, sin acentos y sin espacios repetidos."""
     if pd.isna(valor):
         return ""
 
@@ -47,55 +46,11 @@ def limpiar_texto(valor):
     return re.sub(r"\s+", " ", texto)
 
 
-def limpiar_texto_visible(valor):
-    """Limpia espacios y saltos de línea conservando el texto visible."""
-    if pd.isna(valor):
-        return ""
-
-    texto = str(valor).replace("\n", " ")
-    return re.sub(r"\s+", " ", texto).strip()
-
-
-def titulo_estandar(valor):
-    """Da formato más legible a nombres de instituciones."""
-    texto = limpiar_texto_visible(valor)
-
-    if not texto:
-        return "Sin dato"
-
-    texto = texto.lower()
-
-    palabras_mayusculas = {
-        "cbtis": "CBTis",
-        "cetis": "CETis",
-        "cbta": "CBTA",
-        "emsad": "EMSAD",
-        "isenco": "ISENCO",
-        "conalep": "CONALEP",
-        "icep": "ICEP",
-        "cecyte": "CECyTE",
-        "udeg": "UdeG",
-        "udec": "UdeC",
-        "sep": "SEP",
-        "cobach": "COBACH",
-        "coba": "COBA"
-    }
-
-    partes = []
-
-    for palabra in texto.split():
-        palabra_limpia = re.sub(r"[^a-z0-9áéíóúñ]", "", palabra)
-
-        if palabra_limpia in palabras_mayusculas:
-            partes.append(palabras_mayusculas[palabra_limpia])
-        else:
-            partes.append(palabra.capitalize())
-
-    return " ".join(partes)
-
-
 def nombres_unicos(encabezados):
-    """Evita errores cuando hay encabezados repetidos."""
+    """
+    Conserva encabezados originales.
+    Si existen encabezados repetidos, agrega un sufijo.
+    """
     usados = {}
     resultado = []
 
@@ -118,7 +73,7 @@ def nombres_unicos(encabezados):
 
 
 def buscar_fila_encabezados(df_crudo):
-    """Busca automáticamente la fila donde están los encabezados."""
+    """Identifica automáticamente la fila donde están los encabezados."""
 
     palabras_clave = [
         "matricula/id",
@@ -151,7 +106,10 @@ def buscar_fila_encabezados(df_crudo):
 
 
 def obtener_nombre_carrera(nombre_hoja, df_crudo):
-    """Busca el nombre de carrera dentro de la hoja."""
+    """
+    Busca el nombre de carrera dentro de la hoja.
+    Si no lo encuentra, usa el nombre de la pestaña.
+    """
 
     limite = min(len(df_crudo), 15)
 
@@ -164,16 +122,16 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
             if limpiar_texto(valor) == "carrera":
 
                 if posicion + 1 < len(fila):
-                    carrera = fila[posicion + 1]
+                    posible_carrera = fila[posicion + 1]
 
-                    if pd.notna(carrera):
-                        return str(carrera).strip()
+                    if pd.notna(posible_carrera):
+                        return str(posible_carrera).strip()
 
     return str(nombre_hoja).strip()
 
 
 def encontrar_columna(df, posibles_nombres):
-    """Encuentra columnas aunque cambien acentos, mayúsculas o espacios."""
+    """Encuentra una columna aunque cambien acentos, espacios o mayúsculas."""
 
     columnas_limpias = {
         limpiar_texto(columna): columna
@@ -201,11 +159,11 @@ def encontrar_columna(df, posibles_nombres):
 
 def convertir_promedio(valor):
     """
-    Normaliza calificaciones a escala de 0 a 100.
+    Normaliza promedios a escala de 0 a 100.
 
-    0 a 10       → multiplica por 10.
-    10 a 100     → conserva.
-    Otro valor   → dato dudoso.
+    0 a 10       -> multiplica por 10.
+    10 a 100     -> conserva.
+    Otro valor   -> se marca como dudoso.
     """
 
     if pd.isna(valor) or str(valor).strip() == "":
@@ -221,6 +179,7 @@ def convertir_promedio(valor):
 
     try:
         numero = float(texto)
+
     except (TypeError, ValueError):
         return np.nan, "Dato dudoso: no numérico"
 
@@ -259,7 +218,7 @@ def clasificar_rango_promedio(valor):
 # ============================================================
 
 def normalizar_sexo(valor):
-    """Homologa registros de sexo o género."""
+    """Homologa las distintas formas de registrar sexo o género."""
 
     if pd.isna(valor):
         return "Sin especificar"
@@ -281,10 +240,10 @@ def normalizar_sexo(valor):
 
 def clasificar_estado_procedencia(valor):
     """
-    Clasifica el estado según el nombre de la escuela.
+    Clasifica el estado a partir del texto de la escuela.
 
-    Los registros sin coincidencia se consideran Colima, según el
-    criterio definido para este proyecto.
+    Las escuelas sin una referencia territorial clara se consideran
+    Colima, conforme al criterio definido para este proyecto.
     """
 
     if pd.isna(valor):
@@ -408,310 +367,7 @@ def clasificar_estado_procedencia(valor):
 
 
 # ============================================================
-# NORMALIZACIÓN DE ESCUELAS
-# ============================================================
-
-def obtener_numero_institucion(texto, expresiones):
-    """Busca el número de plantel con expresiones regulares."""
-
-    for expresion in expresiones:
-        coincidencia = re.search(expresion, texto)
-
-        if coincidencia:
-            return coincidencia.group(1)
-
-    return None
-
-
-def obtener_localidad_emsad(texto):
-    """Identifica localidad para estandarizar EMSAD."""
-
-    if "minatitlan" in texto:
-        return "Minatitlán"
-
-    if "lo de villa" in texto:
-        return "Lo de Villa"
-
-    if "zacualpan" in texto:
-        return "Zacualpan"
-
-    if "ixtlahuacan" in texto:
-        return "Ixtlahuacán"
-
-    if "coquimatlan" in texto:
-        return "Coquimatlán"
-
-    if "comala" in texto:
-        return "Comala"
-
-    return None
-
-
-def normalizar_escuela_procedencia(valor):
-    """
-    Agrupa variantes de una misma escuela.
-
-    Ejemplos:
-    CBTis #19 / CBTIS 19 / CBTIs 19 → CBTis 19
-    EMSAD / EMSAD #1 / EMSAD Minatitlán → EMSAD 1 · Minatitlán
-    Telebachillerato / Telebach / Tele Bach → Telebachillerato
-    Colegio de Bachilleres / Colegio de Bach / COBACH → Colegio de Bachilleres
-    Bachilleratos UdeC → Universidad de Colima (U de C)
-    """
-
-    if pd.isna(valor):
-        return "Sin dato"
-
-    escuela_visible = limpiar_texto_visible(valor)
-    texto = limpiar_texto(valor)
-
-    if texto in ["", "nan", "none", "escuela de procedencia"]:
-        return "Sin dato"
-
-    texto_compacto = re.sub(r"[^a-z0-9]", "", texto)
-
-    # --------------------------------------------------------
-    # UNIVERSIDAD DE COLIMA
-    # --------------------------------------------------------
-    es_udec = (
-        "universidad de colima" in texto
-        or "u de c" in texto
-        or "udec" in texto
-        or (
-            re.search(r"\bbach\.?\s*\d+", texto) is not None
-            and ("colima" in texto or "col." in texto)
-        )
-    )
-
-    if es_udec:
-        return "Universidad de Colima (U de C)"
-
-    # --------------------------------------------------------
-    # TELEBACHILLERATO
-    # --------------------------------------------------------
-    es_telebach = (
-        "telebachillerato" in texto
-        or "tele bachillerato" in texto
-        or "telebach" in texto_compacto
-        or "telebach" in texto
-    )
-
-    if es_telebach:
-        return "Telebachillerato"
-
-    # --------------------------------------------------------
-    # COLEGIO DE BACHILLERES
-    # --------------------------------------------------------
-    es_colegio_bach = (
-        "colegio de bachilleres" in texto
-        or "colegio bachilleres" in texto
-        or "colegio de bach" in texto
-        or "colegio bach" in texto
-        or "cobach" in texto_compacto
-        or "coba" in texto_compacto
-    )
-
-    if es_colegio_bach:
-        return "Colegio de Bachilleres"
-
-    # --------------------------------------------------------
-    # CBTis
-    # --------------------------------------------------------
-    if "cbtis" in texto_compacto or "cbti" in texto_compacto:
-
-        numero = obtener_numero_institucion(
-            texto,
-            [
-                r"cbtis\s*#?\s*(\d+)",
-                r"cbti[s]?\s*#?\s*(\d+)"
-            ]
-        )
-
-        if numero:
-            return f"CBTis {numero}"
-
-        return "CBTis"
-
-    # --------------------------------------------------------
-    # CETis
-    # --------------------------------------------------------
-    if "cetis" in texto_compacto:
-
-        numero = obtener_numero_institucion(
-            texto,
-            [
-                r"cetis\s*#?\s*(\d+)"
-            ]
-        )
-
-        if numero:
-            return f"CETis {numero}"
-
-        return "CETis"
-
-    # --------------------------------------------------------
-    # CBTA
-    # --------------------------------------------------------
-    if "cbta" in texto_compacto:
-
-        numero = obtener_numero_institucion(
-            texto,
-            [
-                r"cbta\s*#?\s*(\d+)"
-            ]
-        )
-
-        if numero:
-            return f"CBTA {numero}"
-
-        return "CBTA"
-
-    # --------------------------------------------------------
-    # EMSAD
-    # --------------------------------------------------------
-    if "emsad" in texto_compacto:
-
-        numero = obtener_numero_institucion(
-            texto,
-            [
-                r"emsad\s*#?\s*(\d+)"
-            ]
-        )
-
-        localidad = obtener_localidad_emsad(texto)
-
-        if numero and localidad:
-            return f"EMSAD {numero} · {localidad}"
-
-        if numero:
-            return f"EMSAD {numero}"
-
-        if localidad == "Minatitlán":
-            return "EMSAD 1 · Minatitlán"
-
-        if localidad:
-            return f"EMSAD · {localidad}"
-
-        return "EMSAD"
-
-    # --------------------------------------------------------
-    # ISENCO
-    # --------------------------------------------------------
-    if "isenco" in texto_compacto:
-        return "ISENCO"
-
-    # --------------------------------------------------------
-    # CONALEP
-    # --------------------------------------------------------
-    if "conalep" in texto_compacto:
-        return "CONALEP"
-
-    # --------------------------------------------------------
-    # CECyTE
-    # --------------------------------------------------------
-    if "cecyte" in texto_compacto:
-        return "CECyTE"
-
-    # --------------------------------------------------------
-    # ICEP
-    # --------------------------------------------------------
-    if "icep" in texto_compacto:
-        return "ICEP"
-
-    # --------------------------------------------------------
-    # UNIVERSIDAD DE GUADALAJARA
-    # --------------------------------------------------------
-    if (
-        "universidad de guadalajara" in texto
-        or "udeg" in texto_compacto
-        or "prepa regional tuxpan" in texto
-    ):
-        return "Universidad de Guadalajara (UdeG)"
-
-    # --------------------------------------------------------
-    # PREPARATORIA ANÁHUAC
-    # --------------------------------------------------------
-    if "anahuac" in texto:
-        return "Preparatoria Anáhuac"
-
-    # --------------------------------------------------------
-    # COLEGIO CAMPOVERDE
-    # --------------------------------------------------------
-    if "campoverde" in texto_compacto or "campo verde" in texto:
-        return "Colegio Campoverde"
-
-    # --------------------------------------------------------
-    # INSTITUTO ADONAI
-    # --------------------------------------------------------
-    if "adonai" in texto:
-        return "Instituto Adonai"
-
-    # --------------------------------------------------------
-    # ACREDITA-BACH
-    # --------------------------------------------------------
-    if "acredita" in texto and "bach" in texto:
-        return "Acredita-Bach SEP"
-
-    # --------------------------------------------------------
-    # PREPA EN LÍNEA SEP
-    # --------------------------------------------------------
-    if "prepa en linea" in texto:
-        return "Prepa en Línea SEP"
-
-    # --------------------------------------------------------
-    # RESTO DE ESCUELAS
-    # --------------------------------------------------------
-    texto_base = re.sub(r"[^a-z0-9áéíóúñ ]", " ", texto)
-    texto_base = re.sub(r"\s+", " ", texto_base).strip()
-
-    return titulo_estandar(texto_base)
-
-
-def preparar_top_n_con_otros(
-    df_resumen,
-    columna_categoria,
-    columna_valor,
-    top_n=10
-):
-    """
-    Conserva las categorías más frecuentes y agrupa el resto como Otros.
-    """
-
-    if df_resumen.empty:
-        return pd.DataFrame(
-            columns=[columna_categoria, columna_valor, "Porcentaje"]
-        )
-
-    df_ordenado = df_resumen.sort_values(
-        columna_valor,
-        ascending=False
-    ).copy()
-
-    top = df_ordenado.head(top_n).copy()
-    resto = df_ordenado.iloc[top_n:].copy()
-
-    if not resto.empty:
-        fila_otros = pd.DataFrame({
-            columna_categoria: ["Otros"],
-            columna_valor: [resto[columna_valor].sum()]
-        })
-
-        top = pd.concat(
-            [top, fila_otros],
-            ignore_index=True
-        )
-
-    top["Porcentaje"] = (
-        top[columna_valor]
-        / top[columna_valor].sum()
-        * 100
-    ).round(2)
-
-    return top
-
-
-# ============================================================
-# PROCESAMIENTO DEL ARCHIVO
+# PROCESAMIENTO DEL EXCEL
 # ============================================================
 
 def procesar_hoja(contenido_archivo, nombre_hoja):
@@ -825,38 +481,244 @@ def procesar_archivo_excel(contenido_archivo):
     return df_general, pd.DataFrame(bitacora)
 
 
-def convertir_excel_descargable(df):
-    """Convierte un DataFrame en archivo Excel descargable."""
+# ============================================================
+# TABLAS PARA GRÁFICAS
+# ============================================================
 
-    salida = io.BytesIO()
+def crear_tabla_calificaciones_por_sexo(df):
+    """Crea la tabla para las barras apiladas de calificación por sexo."""
 
-    with pd.ExcelWriter(salida, engine="openpyxl") as writer:
-        df.to_excel(
-            writer,
-            index=False,
-            sheet_name="Aspirantes_integrados"
+    orden_rangos = ["60-69", "70-79", "80-89", "90-100"]
+
+    df_calificaciones = df[
+        df["Rango_promedio"].isin(orden_rangos)
+    ].copy()
+
+    if df_calificaciones.empty:
+        return pd.DataFrame()
+
+    tabla = (
+        df_calificaciones
+        .groupby(["Sexo_normalizado", "Rango_promedio"])
+        .size()
+        .reset_index(name="Aspirantes")
+    )
+
+    tabla["Rango_promedio"] = pd.Categorical(
+        tabla["Rango_promedio"],
+        categories=orden_rangos,
+        ordered=True
+    )
+
+    tabla["Porcentaje"] = (
+        tabla
+        .groupby("Sexo_normalizado")["Aspirantes"]
+        .transform(lambda x: (x / x.sum()) * 100)
+    )
+
+    tabla["Etiqueta"] = tabla["Porcentaje"].apply(
+        lambda valor: f"{valor:.1f}%" if valor >= 5 else ""
+    )
+
+    return tabla
+
+
+def crear_resumen_procedencia(df):
+    """Crea tabla de conteo y porcentaje por estado de procedencia."""
+
+    resumen = (
+        df[
+            df["Estado_procedencia"] != "Sin dato"
+        ]
+        .groupby("Estado_procedencia")
+        .size()
+        .reset_index(name="Aspirantes")
+        .sort_values("Aspirantes", ascending=False)
+    )
+
+    if not resumen.empty:
+        resumen["Porcentaje"] = (
+            resumen["Aspirantes"]
+            / resumen["Aspirantes"].sum()
+            * 100
+        ).round(2)
+
+    return resumen
+
+
+# ============================================================
+# COMPONENTE REUTILIZABLE DE ANÁLISIS
+# ============================================================
+
+def mostrar_analisis(df, titulo):
+    """
+    Muestra:
+    1. Cantidad de mujeres y hombres.
+    2. Barras apiladas por sexo y rango de promedio.
+    3. Pastel de lugar de procedencia.
+    """
+
+    st.subheader(titulo)
+
+    total = len(df)
+
+    mujeres = (
+        df["Sexo_normalizado"]
+        .eq("Mujer")
+        .sum()
+    )
+
+    hombres = (
+        df["Sexo_normalizado"]
+        .eq("Hombre")
+        .sum()
+    )
+
+    sin_especificar = (
+        df["Sexo_normalizado"]
+        .eq("Sin especificar")
+        .sum()
+    )
+
+    promedio = df["Promedio_normalizado_100"].mean()
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Aspirantes", f"{total:,}")
+    col2.metric("Mujeres", f"{mujeres:,}")
+    col3.metric("Hombres", f"{hombres:,}")
+
+    if sin_especificar > 0:
+        col4.metric("Sin especificar", f"{sin_especificar:,}")
+    else:
+        col4.metric(
+            "Promedio general",
+            f"{promedio:.2f}" if pd.notna(promedio) else "Sin dato"
         )
 
-    return salida.getvalue()
+    st.markdown("### Distribución de calificaciones por sexo")
+
+    tabla_calificaciones = crear_tabla_calificaciones_por_sexo(df)
+
+    if tabla_calificaciones.empty:
+        st.info("No hay promedios válidos entre 60 y 100 para graficar.")
+
+    else:
+        fig_calificaciones = px.bar(
+            tabla_calificaciones,
+            x="Porcentaje",
+            y="Sexo_normalizado",
+            color="Rango_promedio",
+            orientation="h",
+            barmode="stack",
+            text="Etiqueta",
+            custom_data=["Aspirantes"],
+            category_orders={
+                "Sexo_normalizado": [
+                    "Mujer",
+                    "Hombre",
+                    "Sin especificar"
+                ],
+                "Rango_promedio": [
+                    "60-69",
+                    "70-79",
+                    "80-89",
+                    "90-100"
+                ]
+            },
+            color_discrete_map={
+                "60-69": "#E74C3C",
+                "70-79": "#F39C12",
+                "80-89": "#F1C40F",
+                "90-100": "#27AE60"
+            },
+            labels={
+                "Sexo_normalizado": "Sexo",
+                "Porcentaje": "Porcentaje de aspirantes",
+                "Rango_promedio": "Rango de promedio"
+            }
+        )
+
+        fig_calificaciones.update_traces(
+            textposition="inside",
+            insidetextanchor="middle",
+            hovertemplate=(
+                "<b>Sexo:</b> %{y}<br>"
+                "<b>Rango:</b> %{fullData.name}<br>"
+                "<b>Aspirantes:</b> %{customdata[0]}<br>"
+                "<b>Porcentaje:</b> %{x:.1f}%"
+                "<extra></extra>"
+            )
+        )
+
+        fig_calificaciones.update_layout(
+            title="Promedio de bachillerato por sexo",
+            legend_title_text="Rango de promedio",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.08,
+                xanchor="center",
+                x=0.5
+            ),
+            xaxis=dict(
+                title="Porcentaje de aspirantes",
+                range=[0, 100],
+                ticksuffix="%"
+            ),
+            yaxis_title="",
+            height=420,
+            margin=dict(t=100, b=40, l=30, r=30)
+        )
+
+        st.plotly_chart(
+            fig_calificaciones,
+            use_container_width=True
+        )
+
+    st.markdown("### Lugar de procedencia")
+
+    resumen_procedencia = crear_resumen_procedencia(df)
+
+    if resumen_procedencia.empty:
+        st.info("No hay información suficiente de procedencia.")
+
+    else:
+        fig_procedencia = px.pie(
+            resumen_procedencia,
+            names="Estado_procedencia",
+            values="Aspirantes",
+            hole=0.45,
+            custom_data=["Porcentaje"]
+        )
+
+        fig_procedencia.update_traces(
+            textposition="inside",
+            textinfo="percent+label",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Aspirantes: %{value}<br>"
+                "Porcentaje: %{customdata[0]:.1f}%"
+                "<extra></extra>"
+            )
+        )
+
+        fig_procedencia.update_layout(
+            title="Procedencia estatal de aspirantes",
+            legend_title_text="Estado",
+            height=460,
+            margin=dict(t=70, b=20, l=20, r=20)
+        )
+
+        st.plotly_chart(
+            fig_procedencia,
+            use_container_width=True
+        )
 
 
 # ============================================================
-# MENÚ
+# CARGA DEL ARCHIVO
 # ============================================================
-
-st.sidebar.header("Menú")
-
-seccion = st.sidebar.radio(
-    "Selecciona una sección:",
-    [
-        "Panorama general",
-        "Calificaciones por sexo",
-        "Lista por carrera",
-        "Calidad de datos",
-        "Base integrada",
-        "Bitácora de carga"
-    ]
-)
 
 archivo_subido = st.sidebar.file_uploader(
     "Carga el archivo Excel de aspirantes",
@@ -866,11 +728,6 @@ archivo_subido = st.sidebar.file_uploader(
 if archivo_subido is None:
     st.info("Carga un archivo Excel para iniciar el análisis.")
     st.stop()
-
-
-# ============================================================
-# CARGA Y VARIABLES DERIVADAS
-# ============================================================
 
 contenido_archivo = archivo_subido.getvalue()
 
@@ -883,6 +740,11 @@ if df_general.empty:
     st.error("No se pudieron identificar registros de aspirantes.")
     st.dataframe(df_bitacora, use_container_width=True)
     st.stop()
+
+
+# ============================================================
+# VARIABLES DERIVADAS
+# ============================================================
 
 columna_sexo = encontrar_columna(
     df_general,
@@ -911,419 +773,43 @@ columna_escuela = encontrar_columna(
 )
 
 if columna_escuela is not None:
-
-    df_general["Escuela_procedencia_original"] = df_general[
-        columna_escuela
-    ].apply(limpiar_texto_visible)
-
     df_general["Estado_procedencia"] = df_general[
         columna_escuela
     ].apply(clasificar_estado_procedencia)
 
-    df_general["Escuela_procedencia_categoria"] = df_general[
-        columna_escuela
-    ].apply(normalizar_escuela_procedencia)
-
 else:
-    df_general["Escuela_procedencia_original"] = "Sin dato"
     df_general["Estado_procedencia"] = "Sin dato"
-    df_general["Escuela_procedencia_categoria"] = "Sin dato"
 
 
 # ============================================================
-# TABLAS RESUMEN
+# PESTAÑAS PRINCIPALES
 # ============================================================
 
-resumen_carrera = (
-    df_general
-    .groupby("Carrera", dropna=False)
-    .agg(
-        Aspirantes=("Carrera", "size"),
-        Promedio=("Promedio_normalizado_100", "mean"),
-        Mediana=("Promedio_normalizado_100", "median")
-    )
-    .reset_index()
-    .sort_values("Aspirantes", ascending=False)
-)
-
-resumen_carrera["Promedio"] = resumen_carrera["Promedio"].round(2)
-resumen_carrera["Mediana"] = resumen_carrera["Mediana"].round(2)
-
-resumen_carrera["Porcentaje"] = (
-    resumen_carrera["Aspirantes"]
-    / resumen_carrera["Aspirantes"].sum()
-    * 100
-).round(2)
-
-resumen_estado = (
-    df_general[
-        df_general["Estado_procedencia"] != "Sin dato"
+tab_general, tab_carrera = st.tabs(
+    [
+        "📊 Análisis general",
+        "🎓 Análisis por carrera"
     ]
-    .groupby("Estado_procedencia", dropna=False)
-    .size()
-    .reset_index(name="Aspirantes")
-    .sort_values("Aspirantes", ascending=False)
-)
-
-if not resumen_estado.empty:
-    resumen_estado["Porcentaje"] = (
-        resumen_estado["Aspirantes"]
-        / resumen_estado["Aspirantes"].sum()
-        * 100
-    ).round(2)
-
-resumen_escuela = (
-    df_general[
-        df_general["Escuela_procedencia_categoria"] != "Sin dato"
-    ]
-    .groupby("Escuela_procedencia_categoria", dropna=False)
-    .size()
-    .reset_index(name="Aspirantes")
-    .sort_values("Aspirantes", ascending=False)
-)
-
-if not resumen_escuela.empty:
-    resumen_escuela["Porcentaje"] = (
-        resumen_escuela["Aspirantes"]
-        / resumen_escuela["Aspirantes"].sum()
-        * 100
-    ).round(2)
-
-resumen_escuela_visual = preparar_top_n_con_otros(
-    resumen_escuela,
-    columna_categoria="Escuela_procedencia_categoria",
-    columna_valor="Aspirantes",
-    top_n=10
 )
 
 
 # ============================================================
-# PANORAMA GENERAL
+# PESTAÑA 1 · ANÁLISIS GENERAL
 # ============================================================
 
-if seccion == "Panorama general":
+with tab_general:
 
-    st.subheader("Panorama general de aspirantes")
-
-    total_aspirantes = len(df_general)
-    total_carreras = df_general["Carrera"].nunique()
-    promedio_general = df_general["Promedio_normalizado_100"].mean()
-    mediana_general = df_general["Promedio_normalizado_100"].median()
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric("Aspirantes", f"{total_aspirantes:,}")
-    col2.metric("Carreras", total_carreras)
-
-    col3.metric(
-        "Promedio general",
-        f"{promedio_general:.2f}"
-        if pd.notna(promedio_general)
-        else "Sin dato"
-    )
-
-    col4.metric(
-        "Mediana general",
-        f"{mediana_general:.2f}"
-        if pd.notna(mediana_general)
-        else "Sin dato"
-    )
-
-    st.markdown("### Perfil general de ingreso")
-
-    col_carrera, col_estado = st.columns(2)
-
-    with col_carrera:
-
-        fig_carrera = px.pie(
-            resumen_carrera,
-            names="Carrera",
-            values="Aspirantes",
-            hole=0.45
-        )
-
-        fig_carrera.update_traces(
-            textposition="inside",
-            textinfo="percent",
-            hovertemplate=(
-                "<b>%{label}</b><br>"
-                "Aspirantes: %{value}<br>"
-                "Porcentaje: %{percent}"
-                "<extra></extra>"
-            )
-        )
-
-        fig_carrera.update_layout(
-            title="Aspirantes por carrera",
-            legend_title_text="Carrera",
-            height=440
-        )
-
-        st.plotly_chart(
-            fig_carrera,
-            use_container_width=True
-        )
-
-    with col_estado:
-
-        fig_estado = px.pie(
-            resumen_estado,
-            names="Estado_procedencia",
-            values="Aspirantes",
-            hole=0.45
-        )
-
-        fig_estado.update_traces(
-            textposition="inside",
-            textinfo="percent+label",
-            hovertemplate=(
-                "<b>%{label}</b><br>"
-                "Aspirantes: %{value}<br>"
-                "Porcentaje: %{percent}"
-                "<extra></extra>"
-            )
-        )
-
-        fig_estado.update_layout(
-            title="Procedencia por estado",
-            legend_title_text="Estado",
-            height=440
-        )
-
-        st.plotly_chart(
-            fig_estado,
-            use_container_width=True
-        )
-
-    st.markdown("### Escuela de procedencia")
-
-    if resumen_escuela_visual.empty:
-        st.info("No se encontraron escuelas de procedencia registradas.")
-
-    else:
-        fig_escuela = px.pie(
-            resumen_escuela_visual,
-            names="Escuela_procedencia_categoria",
-            values="Aspirantes",
-            hole=0.45,
-            custom_data=["Porcentaje"]
-        )
-
-        fig_escuela.update_traces(
-            textposition="inside",
-            textinfo="percent",
-            hovertemplate=(
-                "<b>%{label}</b><br>"
-                "Aspirantes: %{value}<br>"
-                "Porcentaje: %{customdata[0]:.1f}%"
-                "<extra></extra>"
-            )
-        )
-
-        fig_escuela.update_layout(
-            title=(
-                "Top 10 escuelas de procedencia "
-                "y agrupación de las restantes"
-            ),
-            legend_title_text="Escuela",
-            height=580
-        )
-
-        st.plotly_chart(
-            fig_escuela,
-            use_container_width=True
-        )
-
-    with st.expander("Ver tabla completa de escuelas agrupadas"):
-
-        tabla_escuela = resumen_escuela.rename(
-            columns={
-                "Escuela_procedencia_categoria": "Escuela"
-            }
-        )
-
-        st.dataframe(
-            tabla_escuela[
-                ["Escuela", "Aspirantes", "Porcentaje"]
-            ],
-            use_container_width=True,
-            hide_index=True
-        )
-
-    with st.expander("Ver variantes originales agrupadas"):
-
-        variantes = (
-            df_general[
-                [
-                    "Escuela_procedencia_original",
-                    "Escuela_procedencia_categoria"
-                ]
-            ]
-            .value_counts()
-            .reset_index(name="Aspirantes")
-            .sort_values(
-                ["Escuela_procedencia_categoria", "Aspirantes"],
-                ascending=[True, False]
-            )
-        )
-
-        variantes = variantes.rename(
-            columns={
-                "Escuela_procedencia_original": "Registro original",
-                "Escuela_procedencia_categoria": "Categoría agrupada"
-            }
-        )
-
-        st.dataframe(
-            variantes,
-            use_container_width=True,
-            hide_index=True
-        )
-
-
-# ============================================================
-# CALIFICACIONES POR SEXO
-# ============================================================
-
-elif seccion == "Calificaciones por sexo":
-
-    st.subheader("Distribución de calificaciones por sexo")
-
-    orden_rangos = ["60-69", "70-79", "80-89", "90-100"]
-    orden_sexo = ["Mujer", "Hombre", "Sin especificar"]
-
-    df_calificaciones = df_general[
-        df_general["Rango_promedio"].isin(orden_rangos)
-    ].copy()
-
-    if df_calificaciones.empty:
-        st.warning("No se encontraron promedios válidos entre 60 y 100.")
-        st.stop()
-
-    tabla_sexo_promedio = (
-        df_calificaciones
-        .groupby(["Sexo_normalizado", "Rango_promedio"])
-        .size()
-        .reset_index(name="Aspirantes")
-    )
-
-    tabla_sexo_promedio["Rango_promedio"] = pd.Categorical(
-        tabla_sexo_promedio["Rango_promedio"],
-        categories=orden_rangos,
-        ordered=True
-    )
-
-    tabla_sexo_promedio["Sexo_normalizado"] = pd.Categorical(
-        tabla_sexo_promedio["Sexo_normalizado"],
-        categories=orden_sexo,
-        ordered=True
-    )
-
-    tabla_sexo_promedio["Porcentaje"] = (
-        tabla_sexo_promedio
-        .groupby("Sexo_normalizado")["Aspirantes"]
-        .transform(lambda x: x / x.sum() * 100)
-    )
-
-    tabla_sexo_promedio["Etiqueta"] = tabla_sexo_promedio[
-        "Porcentaje"
-    ].apply(
-        lambda valor: f"{valor:.1f}%" if valor >= 5 else ""
-    )
-
-    fig_barras = px.bar(
-        tabla_sexo_promedio,
-        x="Porcentaje",
-        y="Sexo_normalizado",
-        color="Rango_promedio",
-        orientation="h",
-        barmode="stack",
-        text="Etiqueta",
-        custom_data=["Aspirantes"],
-        category_orders={
-            "Sexo_normalizado": orden_sexo,
-            "Rango_promedio": orden_rangos
-        },
-        color_discrete_map={
-            "60-69": "#E74C3C",
-            "70-79": "#F39C12",
-            "80-89": "#F1C40F",
-            "90-100": "#27AE60"
-        }
-    )
-
-    fig_barras.update_traces(
-        textposition="inside",
-        hovertemplate=(
-            "<b>Sexo:</b> %{y}<br>"
-            "<b>Rango:</b> %{fullData.name}<br>"
-            "<b>Aspirantes:</b> %{customdata[0]}<br>"
-            "<b>Porcentaje:</b> %{x:.1f}%"
-            "<extra></extra>"
-        )
-    )
-
-    fig_barras.update_layout(
-        title="Distribución porcentual de calificaciones por sexo",
-        legend_title_text="Rango de promedio",
-        xaxis=dict(
-            title="Porcentaje de aspirantes",
-            range=[0, 100],
-            ticksuffix="%"
-        ),
-        yaxis_title="",
-        height=420
-    )
-
-    st.plotly_chart(
-        fig_barras,
-        use_container_width=True
-    )
-
-    tabla_conteo = (
-        tabla_sexo_promedio
-        .pivot(
-            index="Sexo_normalizado",
-            columns="Rango_promedio",
-            values="Aspirantes"
-        )
-        .fillna(0)
-        .astype(int)
-        .reset_index()
-    )
-
-    for rango in orden_rangos:
-        if rango not in tabla_conteo.columns:
-            tabla_conteo[rango] = 0
-
-    tabla_conteo["Total"] = tabla_conteo[
-        orden_rangos
-    ].sum(axis=1)
-
-    tabla_conteo = tabla_conteo.rename(
-        columns={
-            "Sexo_normalizado": "Sexo",
-            "60-69": "🔴 60-69",
-            "70-79": "🟠 70-79",
-            "80-89": "🟡 80-89",
-            "90-100": "🟢 90-100"
-        }
-    )
-
-    st.dataframe(
-        tabla_conteo,
-        use_container_width=True,
-        hide_index=True
+    mostrar_analisis(
+        df=df_general,
+        titulo="Análisis general de aspirantes"
     )
 
 
 # ============================================================
-# LISTA POR CARRERA
+# PESTAÑA 2 · ANÁLISIS POR CARRERA
 # ============================================================
 
-elif seccion == "Lista por carrera":
-
-    st.subheader("Lista de aspirantes por carrera")
+with tab_carrera:
 
     carreras = sorted(
         df_general["Carrera"]
@@ -1333,169 +819,15 @@ elif seccion == "Lista por carrera":
     )
 
     carrera_seleccionada = st.selectbox(
-        "Selecciona una carrera:",
-        carreras
+        "Selecciona una carrera",
+        options=carreras
     )
 
     df_carrera = df_general[
         df_general["Carrera"] == carrera_seleccionada
     ].copy()
 
-    st.metric("Aspirantes registrados", len(df_carrera))
-
-    columnas_preferidas = [
-        "Matrícula/ID",
-        "Matrícula",
-        "ID",
-        "APELLIDO PATERNO",
-        "APELLIDO MATERNO",
-        "NOMBRE (S)",
-        "Género",
-        "Genero",
-        "Sexo",
-        "Escuela de Procedencia",
-        "Escuela_procedencia_categoria",
-        "Estado_procedencia",
-        "Promedio_original",
-        "Promedio_normalizado_100",
-        "Estatus_promedio",
-        "Observaciones"
-    ]
-
-    columnas_disponibles = [
-        columna
-        for columna in columnas_preferidas
-        if columna in df_carrera.columns
-    ]
-
-    st.dataframe(
-        df_carrera[columnas_disponibles],
-        use_container_width=True,
-        hide_index=True
-    )
-
-    archivo_excel = convertir_excel_descargable(df_carrera)
-
-    st.download_button(
-        label="⬇️ Descargar lista de esta carrera",
-        data=archivo_excel,
-        file_name=f"aspirantes_{carrera_seleccionada}.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument."
-            "spreadsheetml.sheet"
-        )
-    )
-
-
-# ============================================================
-# CALIDAD DE DATOS
-# ============================================================
-
-elif seccion == "Calidad de datos":
-
-    st.subheader("Revisión de calidad de datos")
-
-    resumen_promedios = (
-        df_general["Estatus_promedio"]
-        .value_counts(dropna=False)
-        .reset_index()
-    )
-
-    resumen_promedios.columns = [
-        "Estatus del promedio",
-        "Registros"
-    ]
-
-    st.dataframe(
-        resumen_promedios,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    datos_dudosos = df_general[
-        df_general["Estatus_promedio"]
-        .str.contains("Dato dudoso", na=False)
-    ].copy()
-
-    if not datos_dudosos.empty:
-        st.markdown("#### Registros con calificación dudosa")
-        st.dataframe(
-            datos_dudosos,
-            use_container_width=True,
-            hide_index=True
-        )
-
-    columna_id = encontrar_columna(
-        df_general,
-        ["Matrícula/ID", "Matrícula", "ID"]
-    )
-
-    if columna_id is not None:
-
-        duplicados = (
-            df_general[
-                df_general.duplicated(
-                    subset=[columna_id],
-                    keep=False
-                )
-            ]
-            .assign(
-                _orden=lambda x: (
-                    x[columna_id]
-                    .fillna("")
-                    .astype(str)
-                )
-            )
-            .sort_values("_orden")
-            .drop(columns="_orden")
-        )
-
-        if not duplicados.empty:
-            st.markdown("#### Matrículas o ID repetidos")
-            st.dataframe(
-                duplicados,
-                use_container_width=True,
-                hide_index=True
-            )
-
-
-# ============================================================
-# BASE INTEGRADA
-# ============================================================
-
-elif seccion == "Base integrada":
-
-    st.subheader("Base integrada de aspirantes")
-
-    st.dataframe(
-        df_general,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    archivo_excel = convertir_excel_descargable(df_general)
-
-    st.download_button(
-        label="⬇️ Descargar base integrada",
-        data=archivo_excel,
-        file_name="base_integrada_aspirantes.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument."
-            "spreadsheetml.sheet"
-        )
-    )
-
-
-# ============================================================
-# BITÁCORA
-# ============================================================
-
-elif seccion == "Bitácora de carga":
-
-    st.subheader("Bitácora de lectura del archivo")
-
-    st.dataframe(
-        df_bitacora,
-        use_container_width=True,
-        hide_index=True
+    mostrar_analisis(
+        df=df_carrera,
+        titulo=f"Análisis de aspirantes · {carrera_seleccionada}"
     )
