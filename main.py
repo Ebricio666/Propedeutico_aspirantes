@@ -47,7 +47,7 @@ def limpiar_texto(valor):
 
 
 def limpiar_texto_visible(valor):
-    """Limpia saltos de línea y espacios, conservando mayúsculas."""
+    """Limpia saltos de línea y espacios conservando mayúsculas."""
     if pd.isna(valor):
         return ""
 
@@ -56,7 +56,7 @@ def limpiar_texto_visible(valor):
 
 
 def nombres_unicos(encabezados):
-    """Evita errores cuando una hoja tiene encabezados repetidos."""
+    """Evita errores cuando una hoja contiene encabezados repetidos."""
     usados = {}
     resultado = []
 
@@ -129,7 +129,7 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
 
 
 def encontrar_columna(df, posibles_nombres):
-    """Busca columnas ignorando acentos, mayúsculas y espacios."""
+    """Busca una columna ignorando acentos, espacios y mayúsculas."""
 
     columnas_limpias = {
         limpiar_texto(columna): columna
@@ -155,7 +155,7 @@ def encontrar_columna(df, posibles_nombres):
 
 def convertir_promedio(valor):
     """
-    Convierte calificaciones a escala de 0 a 100.
+    Normaliza calificaciones a escala de 0 a 100.
 
     0 a 10      -> multiplica por 10
     10 a 100    -> conserva
@@ -230,14 +230,13 @@ def normalizar_sexo(valor):
 
 
 # ============================================================
-# ESTADO DE PROCEDENCIA
+# PROCEDENCIA ESTATAL
 # ============================================================
 
 def clasificar_estado_procedencia(valor):
     """
-    Clasifica el estado a partir del texto de la escuela.
-
-    Cuando no se identifica otro estado, se considera Colima.
+    Clasifica el estado desde el nombre de la escuela.
+    Las escuelas no identificadas se consideran Colima.
     """
 
     if pd.isna(valor):
@@ -350,12 +349,7 @@ def obtener_numero_institucion(texto, expresiones):
 
 def normalizar_escuela_procedencia(valor):
     """
-    Agrupa variantes de una misma institución.
-
-    UdeC / U de C / Universidad de Colima -> U de C
-    COBACH / COBA / Colegio de Bach -> Colegio de Bachilleres
-    Telebach / Telebachillerato -> Telebachillerato
-    CBTIS / CBTis / CBTIs -> CBTis
+    Agrupa variantes de escuelas similares.
     """
 
     if pd.isna(valor):
@@ -561,7 +555,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
 
 @st.cache_data(show_spinner=False)
 def procesar_archivo_excel(contenido_archivo):
-    """Integra todas las hojas en un solo DataFrame."""
+    """Integra todas las hojas del archivo en un solo DataFrame."""
 
     archivo = io.BytesIO(contenido_archivo)
     excel = pd.ExcelFile(archivo)
@@ -672,10 +666,7 @@ def crear_resumen_bachillerato(df):
 
 
 def crear_distribucion_calificaciones_bachillerato(df, top_n=10):
-    """
-    Crea barras apiladas con distribución porcentual tipo semáforo
-    dentro de cada bachillerato.
-    """
+    """Crea barras apiladas semáforo dentro de cada bachillerato."""
 
     orden_rangos = ["60-69", "70-79", "80-89", "90-100"]
 
@@ -767,9 +758,7 @@ def crear_distribucion_calificaciones_bachillerato(df, top_n=10):
 
 
 def crear_concentrado_bachillerato_carrera(df):
-    """
-    Crea tabla de concentración de bachilleratos hacia carreras.
-    """
+    """Crea tabla de concentración bachillerato hacia carrera."""
 
     concentrado = (
         df[
@@ -807,12 +796,42 @@ def crear_concentrado_bachillerato_carrera(df):
         * 100
     ).round(1)
 
-    concentrado = concentrado.sort_values(
+    return concentrado.sort_values(
         ["Total_bachillerato", "Aspirantes"],
         ascending=[False, False]
     )
 
-    return concentrado
+
+def crear_resumen_individual_bachilleratos(df):
+    """
+    Resumen específico para una carrera seleccionada.
+    """
+
+    resumen = (
+        df[
+            df["Bachillerato_procedencia"] != "Sin dato"
+        ]
+        .groupby("Bachillerato_procedencia")
+        .agg(
+            Aspirantes=("Bachillerato_procedencia", "size"),
+            Promedio=("Promedio_normalizado_100", "mean")
+        )
+        .reset_index()
+        .sort_values("Aspirantes", ascending=False)
+    )
+
+    if resumen.empty:
+        return pd.DataFrame()
+
+    resumen["Promedio"] = resumen["Promedio"].round(1)
+
+    total = resumen["Aspirantes"].sum()
+
+    resumen["Porcentaje"] = (
+        resumen["Aspirantes"] / total * 100
+    ).round(1)
+
+    return resumen
 
 
 # ============================================================
@@ -820,7 +839,7 @@ def crear_concentrado_bachillerato_carrera(df):
 # ============================================================
 
 def mostrar_grafica_calificaciones(df):
-    """Barras apiladas de calificaciones por sexo."""
+    """Barras apiladas de promedio por sexo."""
 
     tabla = crear_tabla_calificaciones_por_sexo(df)
 
@@ -1010,7 +1029,7 @@ def mostrar_grafica_semaforo_bachillerato(df):
 # ============================================================
 
 def mostrar_sunburst_udec(df):
-    """Sunburst Universidad de Colima -> carreras."""
+    """Sunburst Universidad de Colima hacia carreras."""
 
     df_udec = df[
         df["Bachillerato_procedencia"] == "Universidad de Colima (U de C)"
@@ -1053,7 +1072,7 @@ def mostrar_sunburst_udec(df):
 
 
 def mostrar_sunburst_otros_bachilleratos(df, top_n=10):
-    """Sunburst otros bachilleratos -> carreras."""
+    """Sunburst otros bachilleratos hacia carreras."""
 
     df_otros = df[
         (
@@ -1113,70 +1132,6 @@ def mostrar_sunburst_otros_bachilleratos(df, top_n=10):
 
     fig.update_layout(
         title="Otros bachilleratos → carreras elegidas",
-        height=520
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def mostrar_sunburst_carrera_escuelas(df_carrera, carrera):
-    """
-    Sunburst en análisis por carrera:
-    Carrera seleccionada -> bachilleratos de procedencia.
-    """
-
-    df_valido = df_carrera[
-        df_carrera["Bachillerato_procedencia"] != "Sin dato"
-    ].copy()
-
-    if df_valido.empty:
-        st.info("No hay bachilleratos de procedencia registrados.")
-        return
-
-    totales = (
-        df_valido
-        .groupby("Bachillerato_procedencia")
-        .size()
-        .reset_index(name="Aspirantes")
-        .sort_values("Aspirantes", ascending=False)
-    )
-
-    escuelas_top = totales.head(10)[
-        "Bachillerato_procedencia"
-    ].tolist()
-
-    df_valido["Escuela_sunburst"] = np.where(
-        df_valido["Bachillerato_procedencia"].isin(escuelas_top),
-        df_valido["Bachillerato_procedencia"],
-        "Otros bachilleratos"
-    )
-
-    resumen = (
-        df_valido
-        .groupby("Escuela_sunburst")
-        .size()
-        .reset_index(name="Aspirantes")
-    )
-
-    resumen["Carrera_sunburst"] = carrera
-
-    fig = px.sunburst(
-        resumen,
-        path=["Carrera_sunburst", "Escuela_sunburst"],
-        values="Aspirantes"
-    )
-
-    fig.update_traces(
-        hovertemplate=(
-            "<b>%{label}</b><br>"
-            "Aspirantes: %{value}<br>"
-            "Participación: %{percentParent:.1%}"
-            "<extra></extra>"
-        )
-    )
-
-    fig.update_layout(
-        title="Bachilleratos de procedencia de la carrera",
         height=520
     )
 
@@ -1254,7 +1209,7 @@ else:
 
 
 # ============================================================
-# PESTAÑAS
+# PESTAÑAS PRINCIPALES
 # ============================================================
 
 tab_general, tab_carrera = st.tabs(
@@ -1406,9 +1361,77 @@ with tab_carrera:
     with col_semaforo:
         mostrar_grafica_semaforo_bachillerato(df_carrera)
 
-    st.markdown("## Bachilleratos de procedencia")
+    st.markdown("## Resumen de bachilleratos de procedencia")
 
-    mostrar_sunburst_carrera_escuelas(
-        df_carrera,
-        carrera_seleccionada
+    resumen_carrera = crear_resumen_individual_bachilleratos(
+        df_carrera
     )
+
+    if resumen_carrera.empty:
+        st.info("No hay información de bachilleratos para esta carrera.")
+
+    else:
+        principal = resumen_carrera.iloc[0]
+
+        total_con_escuela = resumen_carrera["Aspirantes"].sum()
+
+        udec = resumen_carrera[
+            resumen_carrera["Bachillerato_procedencia"]
+            == "Universidad de Colima (U de C)"
+        ]
+
+        aspirantes_udec = (
+            int(udec["Aspirantes"].iloc[0])
+            if not udec.empty
+            else 0
+        )
+
+        porcentaje_udec = (
+            aspirantes_udec / total_con_escuela * 100
+            if total_con_escuela > 0
+            else 0
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Bachillerato principal",
+            principal["Bachillerato_procedencia"]
+        )
+
+        col2.metric(
+            "Aspirantes del principal",
+            f"{int(principal['Aspirantes']):,}"
+        )
+
+        col3.metric(
+            "Procedencia U de C",
+            f"{porcentaje_udec:.1f}%"
+        )
+
+        col4.metric(
+            "Bachilleratos distintos",
+            f"{len(resumen_carrera):,}"
+        )
+
+        st.markdown("### Principales bachilleratos de procedencia")
+
+        tabla_resumen = resumen_carrera.head(10).rename(
+            columns={
+                "Bachillerato_procedencia": "Bachillerato",
+                "Porcentaje": "Porcentaje"
+            }
+        )
+
+        st.dataframe(
+            tabla_resumen[
+                [
+                    "Bachillerato",
+                    "Aspirantes",
+                    "Porcentaje",
+                    "Promedio"
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
