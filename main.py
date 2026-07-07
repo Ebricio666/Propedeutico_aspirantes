@@ -31,7 +31,7 @@ st.caption(
 # ============================================================
 
 def limpiar_texto(valor):
-    """Convierte texto a minúsculas, sin acentos y espacios repetidos."""
+    """Convierte texto a minúsculas, sin acentos y sin espacios repetidos."""
     if pd.isna(valor):
         return ""
 
@@ -230,10 +230,8 @@ def clasificar_rango_promedio(valor):
 
 def clasificar_estado_procedencia(valor):
     """
-    Asigna un estado según palabras detectadas en la escuela de procedencia.
-
-    Los registros sin coincidencia se conservan como 'Por clasificar'
-    para evitar asignar un estado de manera incorrecta.
+    Identifica un estado por palabras dentro del nombre de la escuela.
+    Cuando no puede identificarlo, asigna Colima por criterio del proyecto.
     """
 
     if pd.isna(valor):
@@ -268,8 +266,38 @@ def clasificar_estado_procedencia(valor):
         "zacualpan",
         "lo de villa",
         "el chanal",
-        "coquimatlan",
-        "qfb colima"
+        "udec",
+        "universidad de colima",
+        "bachillerato 1",
+        "bachillerato 2",
+        "bachillerato 3",
+        "bachillerato 4",
+        "bachillerato 5",
+        "bachillerato 6",
+        "bachillerato 7",
+        "bachillerato 8",
+        "bachillerato 9",
+        "bachillerato 10",
+        "bachillerato 11",
+        "bachillerato 12",
+        "bachillerato 13",
+        "bachillerato 14",
+        "bachillerato 15",
+        "bachillerato 16",
+        "bachillerato 17",
+        "bachillerato 18",
+        "bachillerato 19",
+        "bachillerato 20",
+        "bachillerato 21",
+        "bachillerato 22",
+        "bachillerato 23",
+        "bachillerato 24",
+        "bachillerato 25",
+        "bachillerato 26",
+        "bachillerato 27",
+        "bachillerato 28",
+        "bachillerato 29",
+        "bachillerato 30"
     ]
 
     if any(palabra in texto for palabra in palabras_colima):
@@ -291,7 +319,6 @@ def clasificar_estado_procedencia(valor):
         "tonala",
         "tonalá",
         "sayula",
-        "zapotiltic",
         "zapotiltic",
         "zapotlan",
         "zapotlán",
@@ -395,7 +422,7 @@ def clasificar_estado_procedencia(valor):
         return "Sinaloa"
 
     # --------------------------------------------------------
-    # OTROS
+    # OTROS ESTADOS
     # --------------------------------------------------------
     if "durango" in texto:
         return "Durango"
@@ -406,7 +433,7 @@ def clasificar_estado_procedencia(valor):
     if "baja california" in texto or "tijuana" in texto:
         return "Baja California"
 
-    if "quintana roo" in texto or "quintana roo" in texto:
+    if "quintana roo" in texto:
         return "Quintana Roo"
 
     if "veracruz" in texto:
@@ -415,10 +442,14 @@ def clasificar_estado_procedencia(valor):
     if "ciudad de mexico" in texto or "cdmx" in texto:
         return "Ciudad de México"
 
-    if any(palabra in texto for palabra in ["canada", "canadá", "usa", "united states"]):
+    if any(
+        palabra in texto
+        for palabra in ["canada", "canadá", "usa", "united states"]
+    ):
         return "Internacional"
 
-    return "Por clasificar"
+    # Por instrucción, las escuelas no identificadas se consideran Colima.
+    return "Colima"
 
 
 def procesar_hoja(contenido_archivo, nombre_hoja):
@@ -463,6 +494,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
     if columna_id is not None:
         df = df[df[columna_id].notna()].copy()
 
+    # Variables agregadas, conservando todos los encabezados originales.
     df["Carrera"] = carrera
     df["Hoja_origen"] = nombre_hoja
 
@@ -536,7 +568,7 @@ def procesar_archivo_excel(contenido_archivo):
 
 
 def convertir_excel_descargable(df):
-    """Convierte un DataFrame a un archivo Excel descargable."""
+    """Convierte un DataFrame a archivo Excel descargable."""
 
     salida = io.BytesIO()
 
@@ -727,6 +759,9 @@ if seccion == "Panorama general":
 
     col_carrera, col_procedencia = st.columns(2)
 
+    # --------------------------------------------------------
+    # PASTEL DE CARRERAS
+    # --------------------------------------------------------
     with col_carrera:
 
         st.markdown("#### Aspirantes por carrera")
@@ -760,42 +795,41 @@ if seccion == "Panorama general":
             use_container_width=True
         )
 
+    # --------------------------------------------------------
+    # PASTEL DE PROCEDENCIA ESTATAL
+    # --------------------------------------------------------
     with col_procedencia:
 
         st.markdown("#### Procedencia por estado")
 
         if resumen_estado.empty:
             st.info(
-                "No se logró identificar el estado de procedencia."
+                "No fue posible identificar estados de procedencia."
             )
 
         else:
-            fig_estado = px.bar(
+            fig_estado = px.pie(
                 resumen_estado,
-                x="Aspirantes",
-                y="Estado_procedencia",
-                orientation="h",
-                text="Aspirantes"
+                names="Estado_procedencia",
+                values="Aspirantes",
+                hole=0.45
             )
 
             fig_estado.update_traces(
-                textposition="outside",
+                textposition="inside",
+                textinfo="percent+label",
                 hovertemplate=(
-                    "<b>Estado:</b> %{y}<br>"
-                    "<b>Aspirantes:</b> %{x}<br>"
-                    "<b>Porcentaje:</b> %{customdata[0]:.1f}%"
+                    "<b>%{label}</b><br>"
+                    "Aspirantes: %{value}<br>"
+                    "Porcentaje: %{percent}"
                     "<extra></extra>"
-                ),
-                customdata=resumen_estado[["Porcentaje"]]
+                )
             )
 
             fig_estado.update_layout(
-                xaxis_title="Cantidad de aspirantes",
-                yaxis_title="",
-                yaxis=dict(categoryorder="total ascending"),
-                margin=dict(t=30, b=15, l=15, r=55),
-                height=440,
-                showlegend=False
+                legend_title_text="Estado",
+                margin=dict(t=30, b=15, l=15, r=15),
+                height=440
             )
 
             st.plotly_chart(
@@ -845,33 +879,6 @@ if seccion == "Panorama general":
                         "Porcentaje"
                     ]
                 ],
-                use_container_width=True,
-                hide_index=True
-            )
-
-    por_clasificar = df_general[
-        df_general["Estado_procedencia"] == "Por clasificar"
-    ].copy()
-
-    if not por_clasificar.empty:
-
-        with st.expander(
-            f"Escuelas pendientes de clasificar: {len(por_clasificar)} registros"
-        ):
-
-            escuelas_pendientes = (
-                por_clasificar["Escuela_procedencia_limpia"]
-                .value_counts()
-                .reset_index()
-            )
-
-            escuelas_pendientes.columns = [
-                "Escuela de procedencia",
-                "Aspirantes"
-            ]
-
-            st.dataframe(
-                escuelas_pendientes,
                 use_container_width=True,
                 hide_index=True
             )
