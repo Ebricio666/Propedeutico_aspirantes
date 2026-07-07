@@ -6,6 +6,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -30,7 +31,7 @@ st.caption(
 # ============================================================
 
 def limpiar_texto(valor):
-    """Convierte texto a minúsculas, sin acentos y espacios repetidos."""
+    """Convierte texto a minúsculas, sin acentos y sin espacios repetidos."""
     if pd.isna(valor):
         return ""
 
@@ -47,7 +48,7 @@ def limpiar_texto(valor):
 
 
 def limpiar_texto_visible(valor):
-    """Limpia espacios y saltos de línea, conservando mayúsculas."""
+    """Limpia saltos de línea y espacios, conservando mayúsculas."""
     if pd.isna(valor):
         return ""
 
@@ -56,7 +57,7 @@ def limpiar_texto_visible(valor):
 
 
 def nombres_unicos(encabezados):
-    """Evita errores cuando una hoja contiene encabezados repetidos."""
+    """Evita errores cuando existen encabezados repetidos."""
     usados = {}
     resultado = []
 
@@ -79,7 +80,7 @@ def nombres_unicos(encabezados):
 
 
 def buscar_fila_encabezados(df_crudo):
-    """Busca automáticamente la fila que contiene encabezados."""
+    """Busca automáticamente la fila donde están los encabezados."""
 
     palabras_clave = [
         "matricula/id",
@@ -112,7 +113,7 @@ def buscar_fila_encabezados(df_crudo):
 
 
 def obtener_nombre_carrera(nombre_hoja, df_crudo):
-    """Busca el nombre de la carrera dentro de la hoja."""
+    """Busca el nombre de carrera dentro de la hoja."""
 
     limite = min(len(df_crudo), 15)
 
@@ -134,7 +135,7 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
 
 
 def encontrar_columna(df, posibles_nombres):
-    """Busca columnas ignorando espacios, acentos y mayúsculas."""
+    """Busca una columna ignorando mayúsculas, acentos y espacios."""
 
     columnas_limpias = {
         limpiar_texto(columna): columna
@@ -221,7 +222,7 @@ def clasificar_rango_promedio(valor):
 # ============================================================
 
 def normalizar_sexo(valor):
-    """Homologa valores de sexo o género."""
+    """Homologa registros de sexo o género."""
 
     if pd.isna(valor):
         return "Sin especificar"
@@ -235,108 +236,6 @@ def normalizar_sexo(valor):
         return "Mujer"
 
     return "Sin especificar"
-
-
-# ============================================================
-# PROCEDENCIA ESTATAL
-# ============================================================
-
-def clasificar_estado_procedencia(valor):
-    """
-    Clasifica el estado desde el texto de la escuela.
-    Los registros sin coincidencia se consideran Colima.
-    """
-
-    if pd.isna(valor):
-        return "Sin dato"
-
-    texto = limpiar_texto(valor)
-
-    if texto in ["", "nan", "none", "escuela de procedencia"]:
-        return "Sin dato"
-
-    palabras_jalisco = [
-        "jalisco",
-        "tuxpan",
-        "cihuatlan",
-        "autlan",
-        "guadalajara",
-        "zapopan",
-        "tonala",
-        "sayula",
-        "zapotiltic",
-        "zapotlan",
-        "ciudad guzman",
-        "tequila",
-        "casimiro castillo",
-        "el grullo",
-        "union de tula",
-        "tamazula",
-        "teocuitatlan",
-        "universidad de guadalajara",
-        "udeg"
-    ]
-
-    if any(palabra in texto for palabra in palabras_jalisco):
-        return "Jalisco"
-
-    palabras_michoacan = [
-        "michoacan",
-        "coahuayana",
-        "coalcoman",
-        "morelia",
-        "zamora",
-        "lazaro cardenas",
-        "uruapan",
-        "apatzingan",
-        "maravatio"
-    ]
-
-    if any(palabra in texto for palabra in palabras_michoacan):
-        return "Michoacán"
-
-    palabras_nayarit = [
-        "nayarit",
-        "tepic",
-        "bahia de banderas",
-        "santiago ixcuintla",
-        "compostela"
-    ]
-
-    if any(palabra in texto for palabra in palabras_nayarit):
-        return "Nayarit"
-
-    if "guanajuato" in texto or "leon" in texto:
-        return "Guanajuato"
-
-    if "nuevo leon" in texto or "monterrey" in texto:
-        return "Nuevo León"
-
-    if "sinaloa" in texto or "culiacan" in texto:
-        return "Sinaloa"
-
-    if "durango" in texto:
-        return "Durango"
-
-    if "sonora" in texto or "hermosillo" in texto:
-        return "Sonora"
-
-    if "baja california" in texto or "tijuana" in texto:
-        return "Baja California"
-
-    if "veracruz" in texto:
-        return "Veracruz"
-
-    if "ciudad de mexico" in texto or "cdmx" in texto:
-        return "Ciudad de México"
-
-    if any(
-        palabra in texto
-        for palabra in ["canada", "canadá", "usa", "united states"]
-    ):
-        return "Internacional"
-
-    return "Colima"
 
 
 # ============================================================
@@ -358,9 +257,9 @@ def obtener_numero_institucion(texto, expresiones):
 
 def normalizar_escuela_procedencia(valor):
     """
-    Agrupa variantes de una misma institución.
+    Agrupa variantes de instituciones similares.
 
-    UdeC / U de C / Universidad de Colima -> U de C
+    UdeC / U de C / Universidad de Colima -> Universidad de Colima
     COBACH / COBA / Colegio de Bach -> Colegio de Bachilleres
     Telebach / Telebachillerato -> Telebachillerato
     CBTIS / CBTis / CBTIs -> CBTis
@@ -376,6 +275,7 @@ def normalizar_escuela_procedencia(valor):
     if texto in ["", "nan", "none", "escuela de procedencia"]:
         return "Sin dato"
 
+    # Universidad de Colima
     if (
         "universidad de colima" in texto
         or "u de c" in texto
@@ -385,6 +285,7 @@ def normalizar_escuela_procedencia(valor):
     ):
         return "Universidad de Colima (U de C)"
 
+    # Telebachillerato
     if (
         "telebachillerato" in texto
         or "tele bachillerato" in texto
@@ -393,6 +294,7 @@ def normalizar_escuela_procedencia(valor):
     ):
         return "Telebachillerato"
 
+    # Colegio de Bachilleres
     if (
         "colegio de bachilleres" in texto
         or "colegio bachilleres" in texto
@@ -403,6 +305,7 @@ def normalizar_escuela_procedencia(valor):
     ):
         return "Colegio de Bachilleres"
 
+    # CBTis
     if "cbtis" in texto_compacto or "cbti" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -418,6 +321,7 @@ def normalizar_escuela_procedencia(valor):
 
         return "CBTis"
 
+    # CETis
     if "cetis" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -430,6 +334,7 @@ def normalizar_escuela_procedencia(valor):
 
         return "CETis"
 
+    # CBTA
     if "cbta" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -442,6 +347,7 @@ def normalizar_escuela_procedencia(valor):
 
         return "CBTA"
 
+    # EMSAD
     if "emsad" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -454,6 +360,7 @@ def normalizar_escuela_procedencia(valor):
 
         return "EMSAD"
 
+    # Instituciones frecuentes
     if "isenco" in texto_compacto:
         return "ISENCO"
 
@@ -574,7 +481,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
 
 @st.cache_data(show_spinner=False)
 def procesar_archivo_excel(contenido_archivo):
-    """Integra todas las hojas en un solo DataFrame."""
+    """Integra todas las hojas del archivo en un solo DataFrame."""
 
     archivo = io.BytesIO(contenido_archivo)
     excel = pd.ExcelFile(archivo)
@@ -649,10 +556,7 @@ def crear_tabla_calificaciones_por_sexo(df):
 
 
 def crear_resumen_bachillerato(df):
-    """
-    Crea Top 10 de bachilleratos, agrupa el resto como Otros
-    y añade n a la etiqueta.
-    """
+    """Crea Top 10 de bachilleratos, agrupa resto como Otros y añade n."""
 
     resumen = (
         df[df["Bachillerato_procedencia"] != "Sin dato"]
@@ -698,7 +602,7 @@ def crear_resumen_bachillerato(df):
 
 
 def crear_distribucion_calificaciones_bachillerato(df, top_n=10):
-    """Crea barras apiladas de semáforo por bachillerato."""
+    """Crea barras apiladas semáforo dentro de cada bachillerato."""
 
     orden_rangos = ["60-69", "70-79", "80-89", "90-100"]
 
@@ -834,6 +738,33 @@ def crear_concentrado_bachillerato_carrera(df):
     )
 
 
+def crear_mapa_colores_carreras(df):
+    """
+    Asigna un color fijo por carrera.
+
+    La misma carrera tendrá el mismo color en ambos Sunburst.
+    """
+
+    paleta = (
+        px.colors.qualitative.Alphabet
+        + px.colors.qualitative.Dark24
+        + px.colors.qualitative.Light24
+        + px.colors.qualitative.Bold
+    )
+
+    carreras = sorted(
+        df["Carrera"]
+        .dropna()
+        .astype(str)
+        .unique()
+    )
+
+    return {
+        carrera: paleta[indice % len(paleta)]
+        for indice, carrera in enumerate(carreras)
+    }
+
+
 # ============================================================
 # GRÁFICAS
 # ============================================================
@@ -916,7 +847,7 @@ def mostrar_grafica_calificaciones(df):
 
 
 def mostrar_grafica_bachillerato(df):
-    """Muestra pastel Top 10 de bachilleratos con n incluido."""
+    """Muestra pastel Top 10 de bachilleratos y Otros con n incluido."""
 
     resumen = crear_resumen_bachillerato(df)
 
@@ -929,10 +860,7 @@ def mostrar_grafica_bachillerato(df):
         names="Etiqueta_bachillerato",
         values="Aspirantes",
         hole=0.45,
-        custom_data=[
-            "Porcentaje",
-            "Bachillerato_procedencia"
-        ]
+        custom_data=["Porcentaje"]
     )
 
     fig.update_traces(
@@ -1036,14 +964,15 @@ def mostrar_grafica_semaforo_bachillerato(df):
 
 
 # ============================================================
-# SUNBURSTS
+# SUNBURST: UNIVERSIDAD DE COLIMA -> CARRERAS
 # ============================================================
 
-def mostrar_sunburst_udec(df):
-    """Muestra flujo Universidad de Colima -> carreras."""
+def mostrar_sunburst_udec(df, mapa_colores_carreras):
+    """Muestra el flujo Universidad de Colima -> carreras."""
 
     df_udec = df[
-        df["Bachillerato_procedencia"] == "Universidad de Colima (U de C)"
+        df["Bachillerato_procedencia"]
+        == "Universidad de Colima (U de C)"
     ].copy()
 
     if df_udec.empty:
@@ -1055,28 +984,56 @@ def mostrar_sunburst_udec(df):
         .groupby("Carrera")
         .size()
         .reset_index(name="Aspirantes")
+        .sort_values("Aspirantes", ascending=False)
     )
 
-    resumen["Origen"] = "Universidad de Colima (U de C)"
+    labels = ["Universidad de Colima (U de C)"]
+    parents = [""]
+    values = [int(resumen["Aspirantes"].sum())]
+    ids = ["root_udec"]
+    colores = ["#595959"]
 
-    fig = px.sunburst(
-        resumen,
-        path=["Origen", "Carrera"],
-        values="Aspirantes"
-    )
+    for indice, fila in resumen.reset_index(drop=True).iterrows():
 
-    fig.update_traces(
-        hovertemplate=(
-            "<b>%{label}</b><br>"
-            "Aspirantes: %{value}<br>"
-            "Participación: %{percentParent:.1%}"
-            "<extra></extra>"
+        carrera = fila["Carrera"]
+
+        labels.append(carrera)
+        parents.append("root_udec")
+        values.append(int(fila["Aspirantes"]))
+        ids.append(f"udec_carrera_{indice}")
+
+        colores.append(
+            mapa_colores_carreras.get(
+                carrera,
+                "#9E9E9E"
+            )
+        )
+
+    fig = go.Figure(
+        go.Sunburst(
+            ids=ids,
+            labels=labels,
+            parents=parents,
+            values=values,
+            branchvalues="total",
+            marker=dict(
+                colors=colores,
+                line=dict(color="#111217", width=1)
+            ),
+            insidetextorientation="radial",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Aspirantes: %{value}<br>"
+                "Participación: %{percentParent:.1%}"
+                "<extra></extra>"
+            )
         )
     )
 
     fig.update_layout(
         title="Universidad de Colima → carreras elegidas",
-        height=520
+        height=520,
+        margin=dict(t=70, b=20, l=20, r=20)
     )
 
     st.plotly_chart(
@@ -1085,8 +1042,21 @@ def mostrar_sunburst_udec(df):
     )
 
 
-def mostrar_sunburst_otros_bachilleratos(df, top_n=10):
-    """Muestra flujo otros bachilleratos -> carreras."""
+# ============================================================
+# SUNBURST: OTROS BACHILLERATOS -> CARRERAS
+# ============================================================
+
+def mostrar_sunburst_otros_bachilleratos(
+    df,
+    mapa_colores_carreras,
+    top_n=10
+):
+    """
+    Muestra flujo otros bachilleratos -> carreras.
+
+    Las instituciones se muestran en tonos grises.
+    Las carreras conservan colores fijos.
+    """
 
     df_otros = df[
         (
@@ -1121,33 +1091,105 @@ def mostrar_sunburst_otros_bachilleratos(df, top_n=10):
         "Otros bachilleratos"
     )
 
-    resumen = (
+    resumen_escuelas = (
+        df_otros
+        .groupby("Escuela_sunburst")
+        .size()
+        .reset_index(name="Aspirantes")
+        .sort_values("Aspirantes", ascending=False)
+    )
+
+    resumen_carreras = (
         df_otros
         .groupby(["Escuela_sunburst", "Carrera"])
         .size()
         .reset_index(name="Aspirantes")
+        .sort_values(
+            ["Escuela_sunburst", "Aspirantes"],
+            ascending=[True, False]
+        )
     )
 
-    resumen["Origen"] = "Otros bachilleratos"
+    tonos_gris = [
+        "#4A4A4A",
+        "#5A5A5A",
+        "#6A6A6A",
+        "#7A7A7A",
+        "#8A8A8A",
+        "#9A9A9A",
+        "#AAAAAA",
+        "#BABABA",
+        "#CACACA",
+        "#DADADA",
+        "#707070"
+    ]
 
-    fig = px.sunburst(
-        resumen,
-        path=["Origen", "Escuela_sunburst", "Carrera"],
-        values="Aspirantes"
-    )
+    labels = ["Otros bachilleratos"]
+    parents = [""]
+    values = [int(resumen_escuelas["Aspirantes"].sum())]
+    ids = ["root_otros"]
+    colores = ["#303030"]
 
-    fig.update_traces(
-        hovertemplate=(
-            "<b>%{label}</b><br>"
-            "Aspirantes: %{value}<br>"
-            "Participación: %{percentParent:.1%}"
-            "<extra></extra>"
+    ids_escuelas = {}
+
+    for indice, fila in resumen_escuelas.reset_index(drop=True).iterrows():
+
+        escuela = fila["Escuela_sunburst"]
+        id_escuela = f"escuela_{indice}"
+
+        ids_escuelas[escuela] = id_escuela
+
+        labels.append(escuela)
+        parents.append("root_otros")
+        values.append(int(fila["Aspirantes"]))
+        ids.append(id_escuela)
+
+        colores.append(
+            tonos_gris[indice % len(tonos_gris)]
+        )
+
+    for indice, fila in resumen_carreras.reset_index(drop=True).iterrows():
+
+        carrera = fila["Carrera"]
+        escuela = fila["Escuela_sunburst"]
+
+        labels.append(carrera)
+        parents.append(ids_escuelas[escuela])
+        values.append(int(fila["Aspirantes"]))
+        ids.append(f"carrera_{indice}")
+
+        colores.append(
+            mapa_colores_carreras.get(
+                carrera,
+                "#9E9E9E"
+            )
+        )
+
+    fig = go.Figure(
+        go.Sunburst(
+            ids=ids,
+            labels=labels,
+            parents=parents,
+            values=values,
+            branchvalues="total",
+            marker=dict(
+                colors=colores,
+                line=dict(color="#111217", width=1)
+            ),
+            insidetextorientation="radial",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Aspirantes: %{value}<br>"
+                "Participación: %{percentParent:.1%}"
+                "<extra></extra>"
+            )
         )
     )
 
     fig.update_layout(
         title="Otros bachilleratos → carreras elegidas",
-        height=520
+        height=520,
+        margin=dict(t=70, b=20, l=20, r=20)
     )
 
     st.plotly_chart(
@@ -1157,7 +1199,7 @@ def mostrar_sunburst_otros_bachilleratos(df, top_n=10):
 
 
 # ============================================================
-# CARGA DEL ARCHIVO
+# CARGA Y PROCESAMIENTO
 # ============================================================
 
 archivo_subido = st.sidebar.file_uploader(
@@ -1214,17 +1256,14 @@ columna_escuela = encontrar_columna(
 
 if columna_escuela is not None:
 
-    df_general["Estado_procedencia"] = df_general[
-        columna_escuela
-    ].apply(clasificar_estado_procedencia)
-
     df_general["Bachillerato_procedencia"] = df_general[
         columna_escuela
     ].apply(normalizar_escuela_procedencia)
 
 else:
-    df_general["Estado_procedencia"] = "Sin dato"
     df_general["Bachillerato_procedencia"] = "Sin dato"
+
+mapa_colores_carreras = crear_mapa_colores_carreras(df_general)
 
 
 # ============================================================
@@ -1281,11 +1320,15 @@ with tab_general:
     col_udec, col_otros = st.columns(2)
 
     with col_udec:
-        mostrar_sunburst_udec(df_general)
+        mostrar_sunburst_udec(
+            df_general,
+            mapa_colores_carreras
+        )
 
     with col_otros:
         mostrar_sunburst_otros_bachilleratos(
             df_general,
+            mapa_colores_carreras,
             top_n=10
         )
 
