@@ -76,7 +76,6 @@ def nombres_unicos(encabezados):
 def buscar_fila_encabezados(df_crudo):
     """
     Identifica automáticamente la fila de encabezados.
-    Busca referencias comunes como matrícula, nombre o apellidos.
     """
     palabras_clave = [
         "matricula/id",
@@ -109,7 +108,7 @@ def buscar_fila_encabezados(df_crudo):
 def obtener_nombre_carrera(nombre_hoja, df_crudo):
     """
     Busca el nombre de carrera dentro de la hoja.
-    Si no lo encuentra, usa el nombre de la hoja.
+    Si no lo encuentra, utiliza el nombre de la pestaña.
     """
     limite = min(len(df_crudo), 15)
 
@@ -208,9 +207,7 @@ def normalizar_sexo(valor):
 
 
 def clasificar_rango_promedio(valor):
-    """
-    Clasifica el promedio normalizado en rangos semáforo.
-    """
+    """Clasifica el promedio normalizado en rangos tipo semáforo."""
 
     if pd.isna(valor):
         return "Sin dato"
@@ -262,7 +259,7 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
     df = df_crudo.iloc[fila_encabezados + 1:].copy()
     df.columns = encabezados
 
-    # Elimina únicamente filas totalmente vacías.
+    # Elimina únicamente filas completamente vacías.
     df = df.dropna(how="all").copy()
 
     columna_id = encontrar_columna(
@@ -270,11 +267,11 @@ def procesar_hoja(contenido_archivo, nombre_hoja):
         ["Matrícula/ID", "Matrícula", "ID"]
     )
 
-    # Solo conserva registros donde exista matrícula o identificador.
+    # Conserva solo filas con un identificador.
     if columna_id is not None:
         df = df[df[columna_id].notna()].copy()
 
-    # Variables añadidas, sin borrar columnas originales.
+    # Variables agregadas sin borrar encabezados originales.
     df["Carrera"] = carrera
     df["Hoja_origen"] = nombre_hoja
 
@@ -404,9 +401,7 @@ with st.spinner("Leyendo e integrando hojas del archivo..."):
     )
 
 if df_general.empty:
-    st.error(
-        "No se pudieron identificar registros de aspirantes."
-    )
+    st.error("No se pudieron identificar registros de aspirantes.")
     st.dataframe(df_bitacora, use_container_width=True)
     st.stop()
 
@@ -552,9 +547,9 @@ elif seccion == "Calificaciones por sexo":
     st.subheader("Distribución de calificaciones por sexo")
 
     st.caption(
-        "Los porcentajes se calculan dentro de cada sexo. "
-        "Esto permite comparar la distribución de calificaciones "
-        "aunque el número de mujeres y hombres sea diferente."
+        "Cada barra representa el 100% de aspirantes de ese sexo. "
+        "La distribución permite comparar la concentración de promedios "
+        "sin que afecte el tamaño distinto de cada grupo."
     )
 
     orden_rangos = [
@@ -562,6 +557,12 @@ elif seccion == "Calificaciones por sexo":
         "70-79",
         "80-89",
         "90-100"
+    ]
+
+    orden_sexo = [
+        "Mujer",
+        "Hombre",
+        "Sin especificar"
     ]
 
     df_calificaciones = df_general[
@@ -587,6 +588,12 @@ elif seccion == "Calificaciones por sexo":
         ordered=True
     )
 
+    tabla_sexo_promedio["Sexo_normalizado"] = pd.Categorical(
+        tabla_sexo_promedio["Sexo_normalizado"],
+        categories=orden_sexo,
+        ordered=True
+    )
+
     tabla_sexo_promedio = tabla_sexo_promedio.sort_values(
         ["Sexo_normalizado", "Rango_promedio"]
     )
@@ -597,107 +604,85 @@ elif seccion == "Calificaciones por sexo":
         .transform(lambda x: (x / x.sum()) * 100)
     )
 
-    resumen_sexo = (
-        df_calificaciones
-        .groupby("Sexo_normalizado")
-        .agg(
-            Aspirantes=("Sexo_normalizado", "size"),
-            Promedio_general=("Promedio_normalizado_100", "mean"),
-            Mediana=("Promedio_normalizado_100", "median")
-        )
-        .reset_index()
+    # Muestra etiquetas solo en segmentos visibles.
+    tabla_sexo_promedio["Etiqueta"] = tabla_sexo_promedio[
+        "Porcentaje"
+    ].apply(
+        lambda x: f"{x:.1f}%" if x >= 5 else ""
     )
 
-    resumen_sexo["Promedio_general"] = resumen_sexo[
-        "Promedio_general"
-    ].round(2)
+    fig_barras = px.bar(
+        tabla_sexo_promedio,
+        x="Porcentaje",
+        y="Sexo_normalizado",
+        color="Rango_promedio",
+        orientation="h",
+        barmode="stack",
+        text="Etiqueta",
+        custom_data=["Aspirantes"],
+        category_orders={
+            "Sexo_normalizado": orden_sexo,
+            "Rango_promedio": orden_rangos
+        },
+        color_discrete_map={
+            "60-69": "#E74C3C",
+            "70-79": "#F39C12",
+            "80-89": "#F1C40F",
+            "90-100": "#27AE60"
+        },
+        labels={
+            "Sexo_normalizado": "Sexo",
+            "Porcentaje": "Porcentaje de aspirantes",
+            "Rango_promedio": "Rango de promedio"
+        }
+    )
 
-    resumen_sexo["Mediana"] = resumen_sexo[
-        "Mediana"
-    ].round(2)
-
-    col_grafica, col_resumen = st.columns([1.6, 1])
-
-    with col_grafica:
-
-        fig_barras = px.bar(
-            tabla_sexo_promedio,
-            x="Sexo_normalizado",
-            y="Porcentaje",
-            color="Rango_promedio",
-            barmode="stack",
-            text="Porcentaje",
-            category_orders={
-                "Sexo_normalizado": [
-                    "Mujer",
-                    "Hombre",
-                    "Sin especificar"
-                ],
-                "Rango_promedio": orden_rangos
-            },
-            color_discrete_map={
-                "60-69": "#E74C3C",
-                "70-79": "#F39C12",
-                "80-89": "#F1C40F",
-                "90-100": "#27AE60"
-            },
-            labels={
-                "Sexo_normalizado": "Sexo",
-                "Porcentaje": "Porcentaje de aspirantes",
-                "Rango_promedio": "Rango de promedio"
-            }
+    fig_barras.update_traces(
+        textposition="inside",
+        insidetextanchor="middle",
+        hovertemplate=(
+            "<b>Sexo:</b> %{y}<br>"
+            "<b>Rango:</b> %{fullData.name}<br>"
+            "<b>Aspirantes:</b> %{customdata[0]}<br>"
+            "<b>Porcentaje:</b> %{x:.1f}%"
+            "<extra></extra>"
         )
+    )
 
-        fig_barras.update_traces(
-            texttemplate="%{y:.1f}%",
-            textposition="inside",
-            hovertemplate=(
-                "<b>Sexo:</b> %{x}<br>"
-                "<b>Rango:</b> %{fullData.name}<br>"
-                "<b>Porcentaje:</b> %{y:.1f}%"
-                "<extra></extra>"
-            )
-        )
+    fig_barras.update_layout(
+        title="Distribución porcentual de calificaciones por sexo",
+        legend_title_text="Rango de promedio",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.08,
+            xanchor="center",
+            x=0.5
+        ),
+        xaxis=dict(
+            title="Porcentaje de aspirantes",
+            range=[0, 100],
+            ticksuffix="%"
+        ),
+        yaxis=dict(
+            title="",
+            categoryorder="array",
+            categoryarray=[
+                "Sin especificar",
+                "Hombre",
+                "Mujer"
+            ]
+        ),
+        margin=dict(t=100, b=40, l=40, r=40),
+        height=420
+    )
 
-        fig_barras.update_layout(
-            title="Distribución porcentual de calificaciones por sexo",
-            yaxis=dict(
-                title="Porcentaje de aspirantes",
-                range=[0, 100],
-                ticksuffix="%"
-            ),
-            xaxis_title="",
-            legend_title_text="Rango de promedio",
-            margin=dict(t=70, b=20, l=20, r=20)
-        )
+    st.plotly_chart(
+        fig_barras,
+        use_container_width=True
+    )
 
-        st.plotly_chart(
-            fig_barras,
-            use_container_width=True
-        )
-
-    with col_resumen:
-
-        st.markdown("#### Resumen por sexo")
-
-        st.dataframe(
-            resumen_sexo,
-            use_container_width=True,
-            hide_index=True
-        )
-
-        st.markdown("#### Interpretación del semáforo")
-
-        st.markdown(
-            """
-            🔴 **60–69:** desempeño bajo  
-            🟠 **70–79:** desempeño medio-bajo  
-            🟡 **80–89:** desempeño favorable  
-            🟢 **90–100:** desempeño alto  
-            """
-        )
-
-    st.markdown("### Conteo de aspirantes por rango y sexo")
+    st.markdown("### Cantidad de aspirantes por rango de calificación")
 
     tabla_conteo = (
         tabla_sexo_promedio
@@ -719,10 +704,26 @@ elif seccion == "Calificaciones por sexo":
         orden_rangos
     ].sum(axis=1)
 
+    tabla_conteo = tabla_conteo[
+        tabla_conteo["Total"] > 0
+    ].copy()
+
+    tabla_conteo = tabla_conteo[
+        ["Sexo_normalizado"] + orden_rangos + ["Total"]
+    ]
+
+    tabla_conteo = tabla_conteo.rename(
+        columns={
+            "Sexo_normalizado": "Sexo",
+            "60-69": "🔴 60-69",
+            "70-79": "🟠 70-79",
+            "80-89": "🟡 80-89",
+            "90-100": "🟢 90-100"
+        }
+    )
+
     st.dataframe(
-        tabla_conteo[
-            ["Sexo_normalizado"] + orden_rangos + ["Total"]
-        ],
+        tabla_conteo,
         use_container_width=True,
         hide_index=True
     )
