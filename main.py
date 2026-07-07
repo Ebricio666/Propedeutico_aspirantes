@@ -31,7 +31,7 @@ st.caption(
 # ============================================================
 
 def limpiar_texto(valor):
-    """Convierte texto a minúsculas, sin acentos y sin espacios repetidos."""
+    """Convierte texto a minúsculas, sin acentos y espacios repetidos."""
     if pd.isna(valor):
         return ""
 
@@ -48,7 +48,7 @@ def limpiar_texto(valor):
 
 
 def limpiar_texto_visible(valor):
-    """Limpia espacios y saltos de línea, conservando mayúsculas visibles."""
+    """Limpia espacios y saltos de línea conservando el texto visible."""
     if pd.isna(valor):
         return ""
 
@@ -57,7 +57,7 @@ def limpiar_texto_visible(valor):
 
 
 def titulo_estandar(valor):
-    """Da formato legible a un nombre de institución."""
+    """Da formato más legible a nombres de instituciones."""
     texto = limpiar_texto_visible(valor)
 
     if not texto:
@@ -76,7 +76,9 @@ def titulo_estandar(valor):
         "cecyte": "CECyTE",
         "udeg": "UdeG",
         "udec": "UdeC",
-        "sep": "SEP"
+        "sep": "SEP",
+        "cobach": "COBACH",
+        "coba": "COBA"
     }
 
     partes = []
@@ -93,7 +95,7 @@ def titulo_estandar(valor):
 
 
 def nombres_unicos(encabezados):
-    """Evita errores cuando una hoja tiene columnas con el mismo nombre."""
+    """Evita errores cuando hay encabezados repetidos."""
     usados = {}
     resultado = []
 
@@ -117,6 +119,7 @@ def nombres_unicos(encabezados):
 
 def buscar_fila_encabezados(df_crudo):
     """Busca automáticamente la fila donde están los encabezados."""
+
     palabras_clave = [
         "matricula/id",
         "matricula",
@@ -148,7 +151,8 @@ def buscar_fila_encabezados(df_crudo):
 
 
 def obtener_nombre_carrera(nombre_hoja, df_crudo):
-    """Busca el nombre de la carrera dentro de la hoja."""
+    """Busca el nombre de carrera dentro de la hoja."""
+
     limite = min(len(df_crudo), 15)
 
     for indice in range(limite):
@@ -169,7 +173,8 @@ def obtener_nombre_carrera(nombre_hoja, df_crudo):
 
 
 def encontrar_columna(df, posibles_nombres):
-    """Busca columnas ignorando mayúsculas, acentos y espacios."""
+    """Encuentra columnas aunque cambien acentos, mayúsculas o espacios."""
+
     columnas_limpias = {
         limpiar_texto(columna): columna
         for columna in df.columns
@@ -196,7 +201,7 @@ def encontrar_columna(df, posibles_nombres):
 
 def convertir_promedio(valor):
     """
-    Normaliza la calificación a escala 0–100.
+    Normaliza calificaciones a escala de 0 a 100.
 
     0 a 10       → multiplica por 10.
     10 a 100     → conserva.
@@ -254,7 +259,7 @@ def clasificar_rango_promedio(valor):
 # ============================================================
 
 def normalizar_sexo(valor):
-    """Homologa los valores de sexo o género."""
+    """Homologa registros de sexo o género."""
 
     if pd.isna(valor):
         return "Sin especificar"
@@ -276,10 +281,10 @@ def normalizar_sexo(valor):
 
 def clasificar_estado_procedencia(valor):
     """
-    Clasifica el estado de procedencia según el nombre de la escuela.
+    Clasifica el estado según el nombre de la escuela.
 
-    Las escuelas no reconocidas se consideran Colima según el criterio
-    establecido para este proyecto.
+    Los registros sin coincidencia se consideran Colima, según el
+    criterio definido para este proyecto.
     """
 
     if pd.isna(valor):
@@ -327,7 +332,7 @@ def clasificar_estado_procedencia(valor):
         "uruapan",
         "apatzingan",
         "maravatio",
-        "colegio de bachilleres del edo. de mich"
+        "colegio de bachilleres del edo de mich"
     ]
 
     if any(palabra in texto for palabra in palabras_michoacan):
@@ -407,7 +412,7 @@ def clasificar_estado_procedencia(valor):
 # ============================================================
 
 def obtener_numero_institucion(texto, expresiones):
-    """Busca el número de plantel con distintas expresiones regulares."""
+    """Busca el número de plantel con expresiones regulares."""
 
     for expresion in expresiones:
         coincidencia = re.search(expresion, texto)
@@ -448,7 +453,9 @@ def normalizar_escuela_procedencia(valor):
 
     Ejemplos:
     CBTis #19 / CBTIS 19 / CBTIs 19 → CBTis 19
-    EMSAD / Minatitlán / EMSAD #1 → EMSAD 1 · Minatitlán
+    EMSAD / EMSAD #1 / EMSAD Minatitlán → EMSAD 1 · Minatitlán
+    Telebachillerato / Telebach / Tele Bach → Telebachillerato
+    Colegio de Bachilleres / Colegio de Bach / COBACH → Colegio de Bachilleres
     Bachilleratos UdeC → Universidad de Colima (U de C)
     """
 
@@ -472,12 +479,40 @@ def normalizar_escuela_procedencia(valor):
         or "udec" in texto
         or (
             re.search(r"\bbach\.?\s*\d+", texto) is not None
-            and ("col." in texto or "colima" in texto)
+            and ("colima" in texto or "col." in texto)
         )
     )
 
     if es_udec:
         return "Universidad de Colima (U de C)"
+
+    # --------------------------------------------------------
+    # TELEBACHILLERATO
+    # --------------------------------------------------------
+    es_telebach = (
+        "telebachillerato" in texto
+        or "tele bachillerato" in texto
+        or "telebach" in texto_compacto
+        or "telebach" in texto
+    )
+
+    if es_telebach:
+        return "Telebachillerato"
+
+    # --------------------------------------------------------
+    # COLEGIO DE BACHILLERES
+    # --------------------------------------------------------
+    es_colegio_bach = (
+        "colegio de bachilleres" in texto
+        or "colegio bachilleres" in texto
+        or "colegio de bach" in texto
+        or "colegio bach" in texto
+        or "cobach" in texto_compacto
+        or "coba" in texto_compacto
+    )
+
+    if es_colegio_bach:
+        return "Colegio de Bachilleres"
 
     # --------------------------------------------------------
     # CBTis
@@ -612,15 +647,6 @@ def normalizar_escuela_procedencia(valor):
         return "Instituto Adonai"
 
     # --------------------------------------------------------
-    # COLEGIO DE BACHILLERES DE MICHOACÁN
-    # --------------------------------------------------------
-    if (
-        "colegio de bachilleres" in texto
-        and "mich" in texto
-    ):
-        return "Colegio de Bachilleres de Michoacán"
-
-    # --------------------------------------------------------
     # ACREDITA-BACH
     # --------------------------------------------------------
     if "acredita" in texto and "bach" in texto:
@@ -639,6 +665,49 @@ def normalizar_escuela_procedencia(valor):
     texto_base = re.sub(r"\s+", " ", texto_base).strip()
 
     return titulo_estandar(texto_base)
+
+
+def preparar_top_n_con_otros(
+    df_resumen,
+    columna_categoria,
+    columna_valor,
+    top_n=10
+):
+    """
+    Conserva las categorías más frecuentes y agrupa el resto como Otros.
+    """
+
+    if df_resumen.empty:
+        return pd.DataFrame(
+            columns=[columna_categoria, columna_valor, "Porcentaje"]
+        )
+
+    df_ordenado = df_resumen.sort_values(
+        columna_valor,
+        ascending=False
+    ).copy()
+
+    top = df_ordenado.head(top_n).copy()
+    resto = df_ordenado.iloc[top_n:].copy()
+
+    if not resto.empty:
+        fila_otros = pd.DataFrame({
+            columna_categoria: ["Otros"],
+            columna_valor: [resto[columna_valor].sum()]
+        })
+
+        top = pd.concat(
+            [top, fila_otros],
+            ignore_index=True
+        )
+
+    top["Porcentaje"] = (
+        top[columna_valor]
+        / top[columna_valor].sum()
+        * 100
+    ).round(2)
+
+    return top
 
 
 # ============================================================
@@ -920,15 +989,12 @@ if not resumen_escuela.empty:
         * 100
     ).round(2)
 
-    resumen_escuela["Etiqueta"] = resumen_escuela.apply(
-        lambda fila: (
-            f"{fila['Escuela_procedencia_categoria']}<br>"
-            f"{fila['Porcentaje']:.1f}%"
-            if fila["Porcentaje"] >= 4
-            else ""
-        ),
-        axis=1
-    )
+resumen_escuela_visual = preparar_top_n_con_otros(
+    resumen_escuela,
+    columna_categoria="Escuela_procedencia_categoria",
+    columna_valor="Aspirantes",
+    top_n=10
+)
 
 
 # ============================================================
@@ -1031,38 +1097,44 @@ if seccion == "Panorama general":
 
     st.markdown("### Escuela de procedencia")
 
-    fig_escuela = px.pie(
-        resumen_escuela,
-        names="Escuela_procedencia_categoria",
-        values="Aspirantes",
-        hole=0.45,
-        custom_data=["Porcentaje"]
-    )
+    if resumen_escuela_visual.empty:
+        st.info("No se encontraron escuelas de procedencia registradas.")
 
-    fig_escuela.update_traces(
-        text=resumen_escuela["Etiqueta"],
-        textinfo="text",
-        textposition="inside",
-        hovertemplate=(
-            "<b>%{label}</b><br>"
-            "Aspirantes: %{value}<br>"
-            "Porcentaje: %{customdata[0]:.1f}%"
-            "<extra></extra>"
+    else:
+        fig_escuela = px.pie(
+            resumen_escuela_visual,
+            names="Escuela_procedencia_categoria",
+            values="Aspirantes",
+            hole=0.45,
+            custom_data=["Porcentaje"]
         )
-    )
 
-    fig_escuela.update_layout(
-        title="Distribución de aspirantes por escuela de procedencia",
-        legend_title_text="Escuela",
-        height=560
-    )
+        fig_escuela.update_traces(
+            textposition="inside",
+            textinfo="percent",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Aspirantes: %{value}<br>"
+                "Porcentaje: %{customdata[0]:.1f}%"
+                "<extra></extra>"
+            )
+        )
 
-    st.plotly_chart(
-        fig_escuela,
-        use_container_width=True
-    )
+        fig_escuela.update_layout(
+            title=(
+                "Top 10 escuelas de procedencia "
+                "y agrupación de las restantes"
+            ),
+            legend_title_text="Escuela",
+            height=580
+        )
 
-    with st.expander("Ver tabla de escuelas agrupadas"):
+        st.plotly_chart(
+            fig_escuela,
+            use_container_width=True
+        )
+
+    with st.expander("Ver tabla completa de escuelas agrupadas"):
 
         tabla_escuela = resumen_escuela.rename(
             columns={
