@@ -48,7 +48,7 @@ def limpiar_texto(valor):
 
 
 def limpiar_texto_visible(valor):
-    """Limpia saltos de línea y espacios, conservando mayúsculas."""
+    """Limpia saltos de línea y espacios conservando mayúsculas."""
     if pd.isna(valor):
         return ""
 
@@ -239,6 +239,116 @@ def normalizar_sexo(valor):
 
 
 # ============================================================
+# ESTADO DE PROCEDENCIA
+# ============================================================
+
+def clasificar_estado_procedencia(valor):
+    """
+    Clasifica el estado usando el texto de la escuela.
+    Cuando no identifica otro estado, se considera Colima.
+    """
+
+    if pd.isna(valor):
+        return "Sin dato"
+
+    texto = limpiar_texto(valor)
+
+    if texto in ["", "nan", "none", "escuela de procedencia"]:
+        return "Sin dato"
+
+    palabras_jalisco = [
+        "jalisco",
+        "tuxpan",
+        "cihuatlan",
+        "autlan",
+        "guadalajara",
+        "zapopan",
+        "tonala",
+        "sayula",
+        "zapotiltic",
+        "zapotlan",
+        "ciudad guzman",
+        "tequila",
+        "casimiro castillo",
+        "el grullo",
+        "union de tula",
+        "tamazula",
+        "teocuitatlan",
+        "universidad de guadalajara",
+        "udeg"
+    ]
+
+    if any(palabra in texto for palabra in palabras_jalisco):
+        return "Jalisco"
+
+    palabras_michoacan = [
+        "michoacan",
+        "coahuayana",
+        "coalcoman",
+        "morelia",
+        "zamora",
+        "lazaro cardenas",
+        "uruapan",
+        "apatzingan",
+        "maravatio"
+    ]
+
+    if any(palabra in texto for palabra in palabras_michoacan):
+        return "Michoacán"
+
+    palabras_nayarit = [
+        "nayarit",
+        "tepic",
+        "bahia de banderas",
+        "santiago ixcuintla",
+        "compostela"
+    ]
+
+    if any(palabra in texto for palabra in palabras_nayarit):
+        return "Nayarit"
+
+    palabras_guanajuato = [
+        "guanajuato",
+        "leon",
+        "irapuato",
+        "celaya",
+        "salamanca"
+    ]
+
+    if any(palabra in texto for palabra in palabras_guanajuato):
+        return "Guanajuato"
+
+    if "nuevo leon" in texto or "monterrey" in texto:
+        return "Nuevo León"
+
+    if "sinaloa" in texto or "culiacan" in texto:
+        return "Sinaloa"
+
+    if "durango" in texto:
+        return "Durango"
+
+    if "sonora" in texto or "hermosillo" in texto:
+        return "Sonora"
+
+    if "baja california" in texto or "tijuana" in texto:
+        return "Baja California"
+
+    if "veracruz" in texto:
+        return "Veracruz"
+
+    if "ciudad de mexico" in texto or "cdmx" in texto:
+        return "Ciudad de México"
+
+    if any(
+        palabra in texto
+        for palabra in ["canada", "canadá", "usa", "united states"]
+    ):
+        return "Internacional"
+
+    return "Colima"
+
+
+# ============================================================
 # NORMALIZACIÓN DE BACHILLERATOS
 # ============================================================
 
@@ -256,14 +366,7 @@ def obtener_numero_institucion(texto, expresiones):
 
 
 def normalizar_escuela_procedencia(valor):
-    """
-    Agrupa variantes de instituciones similares.
-
-    UdeC / U de C / Universidad de Colima -> Universidad de Colima
-    COBACH / COBA / Colegio de Bach -> Colegio de Bachilleres
-    Telebach / Telebachillerato -> Telebachillerato
-    CBTIS / CBTis / CBTIs -> CBTis
-    """
+    """Agrupa variantes de una misma institución."""
 
     if pd.isna(valor):
         return "Sin dato"
@@ -275,7 +378,6 @@ def normalizar_escuela_procedencia(valor):
     if texto in ["", "nan", "none", "escuela de procedencia"]:
         return "Sin dato"
 
-    # Universidad de Colima
     if (
         "universidad de colima" in texto
         or "u de c" in texto
@@ -285,7 +387,6 @@ def normalizar_escuela_procedencia(valor):
     ):
         return "Universidad de Colima (U de C)"
 
-    # Telebachillerato
     if (
         "telebachillerato" in texto
         or "tele bachillerato" in texto
@@ -294,7 +395,6 @@ def normalizar_escuela_procedencia(valor):
     ):
         return "Telebachillerato"
 
-    # Colegio de Bachilleres
     if (
         "colegio de bachilleres" in texto
         or "colegio bachilleres" in texto
@@ -305,7 +405,6 @@ def normalizar_escuela_procedencia(valor):
     ):
         return "Colegio de Bachilleres"
 
-    # CBTis
     if "cbtis" in texto_compacto or "cbti" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -321,7 +420,6 @@ def normalizar_escuela_procedencia(valor):
 
         return "CBTis"
 
-    # CETis
     if "cetis" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -334,7 +432,6 @@ def normalizar_escuela_procedencia(valor):
 
         return "CETis"
 
-    # CBTA
     if "cbta" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -347,7 +444,6 @@ def normalizar_escuela_procedencia(valor):
 
         return "CBTA"
 
-    # EMSAD
     if "emsad" in texto_compacto:
 
         numero = obtener_numero_institucion(
@@ -360,7 +456,6 @@ def normalizar_escuela_procedencia(valor):
 
         return "EMSAD"
 
-    # Instituciones frecuentes
     if "isenco" in texto_compacto:
         return "ISENCO"
 
@@ -693,57 +788,8 @@ def crear_distribucion_calificaciones_bachillerato(df, top_n=10):
     return tabla
 
 
-def crear_concentrado_bachillerato_carrera(df):
-    """Crea tabla de concentración de bachilleratos hacia carreras."""
-
-    concentrado = (
-        df[
-            df["Bachillerato_procedencia"] != "Sin dato"
-        ]
-        .groupby(
-            [
-                "Bachillerato_procedencia",
-                "Carrera"
-            ]
-        )
-        .size()
-        .reset_index(name="Aspirantes")
-    )
-
-    if concentrado.empty:
-        return pd.DataFrame()
-
-    total_bachillerato = (
-        concentrado
-        .groupby("Bachillerato_procedencia")["Aspirantes"]
-        .sum()
-        .reset_index(name="Total_bachillerato")
-    )
-
-    concentrado = concentrado.merge(
-        total_bachillerato,
-        on="Bachillerato_procedencia",
-        how="left"
-    )
-
-    concentrado["Porcentaje_dentro_bachillerato"] = (
-        concentrado["Aspirantes"]
-        / concentrado["Total_bachillerato"]
-        * 100
-    ).round(1)
-
-    return concentrado.sort_values(
-        ["Total_bachillerato", "Aspirantes"],
-        ascending=[False, False]
-    )
-
-
 def crear_mapa_colores_carreras(df):
-    """
-    Asigna un color fijo por carrera.
-
-    La misma carrera tendrá el mismo color en ambos Sunburst.
-    """
+    """Asigna un color fijo por carrera en los dos Sunburst."""
 
     paleta = (
         px.colors.qualitative.Alphabet
@@ -840,10 +886,7 @@ def mostrar_grafica_calificaciones(df):
         margin=dict(t=100, b=40, l=30, r=30)
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def mostrar_grafica_bachillerato(df):
@@ -879,10 +922,7 @@ def mostrar_grafica_bachillerato(df):
         height=560
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def mostrar_grafica_semaforo_bachillerato(df):
@@ -957,10 +997,64 @@ def mostrar_grafica_semaforo_bachillerato(df):
         margin=dict(t=100, b=30, l=260, r=30)
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ============================================================
+# CONCENTRADO DE ESTADOS
+# ============================================================
+
+def mostrar_concentrado_estados(df, max_estados=5):
+    """
+    Muestra el estado de procedencia como indicadores compactos.
+    Conserva los principales estados y agrupa el resto como Otros.
+    """
+
+    resumen = (
+        df[
+            df["Estado_procedencia"] != "Sin dato"
+        ]
+        .groupby("Estado_procedencia")
+        .size()
+        .reset_index(name="Aspirantes")
+        .sort_values("Aspirantes", ascending=False)
     )
+
+    if resumen.empty:
+        st.info("No hay información de estado de procedencia.")
+        return
+
+    total = resumen["Aspirantes"].sum()
+
+    if len(resumen) > max_estados:
+        principales = resumen.head(max_estados - 1).copy()
+        otros = resumen.iloc[max_estados - 1:]["Aspirantes"].sum()
+
+        fila_otros = pd.DataFrame({
+            "Estado_procedencia": ["Otros estados"],
+            "Aspirantes": [otros]
+        })
+
+        resumen = pd.concat(
+            [principales, fila_otros],
+            ignore_index=True
+        )
+
+    resumen["Porcentaje"] = (
+        resumen["Aspirantes"]
+        / total
+        * 100
+    ).round(1)
+
+    columnas = st.columns(len(resumen))
+
+    for columna, (_, fila) in zip(columnas, resumen.iterrows()):
+        columna.metric(
+            fila["Estado_procedencia"],
+            f"{int(fila['Aspirantes']):,}",
+            f"{fila['Porcentaje']:.1f}%",
+            delta_color="off"
+        )
 
 
 # ============================================================
@@ -968,7 +1062,7 @@ def mostrar_grafica_semaforo_bachillerato(df):
 # ============================================================
 
 def mostrar_sunburst_udec(df, mapa_colores_carreras):
-    """Muestra el flujo Universidad de Colima -> carreras."""
+    """Muestra flujo Universidad de Colima -> carreras."""
 
     df_udec = df[
         df["Bachillerato_procedencia"]
@@ -1036,10 +1130,7 @@ def mostrar_sunburst_udec(df, mapa_colores_carreras):
         margin=dict(t=70, b=20, l=20, r=20)
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # ============================================================
@@ -1054,8 +1145,7 @@ def mostrar_sunburst_otros_bachilleratos(
     """
     Muestra flujo otros bachilleratos -> carreras.
 
-    Las instituciones se muestran en tonos grises.
-    Las carreras conservan colores fijos.
+    Instituciones en grises y carreras con colores fijos.
     """
 
     df_otros = df[
@@ -1104,10 +1194,6 @@ def mostrar_sunburst_otros_bachilleratos(
         .groupby(["Escuela_sunburst", "Carrera"])
         .size()
         .reset_index(name="Aspirantes")
-        .sort_values(
-            ["Escuela_sunburst", "Aspirantes"],
-            ascending=[True, False]
-        )
     )
 
     tonos_gris = [
@@ -1192,10 +1278,7 @@ def mostrar_sunburst_otros_bachilleratos(
         margin=dict(t=70, b=20, l=20, r=20)
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # ============================================================
@@ -1260,29 +1343,38 @@ if columna_escuela is not None:
         columna_escuela
     ].apply(normalizar_escuela_procedencia)
 
+    df_general["Estado_procedencia"] = df_general[
+        columna_escuela
+    ].apply(clasificar_estado_procedencia)
+
 else:
     df_general["Bachillerato_procedencia"] = "Sin dato"
+    df_general["Estado_procedencia"] = "Sin dato"
 
 mapa_colores_carreras = crear_mapa_colores_carreras(df_general)
 
 
 # ============================================================
-# PESTAÑAS
+# NAVEGACIÓN
 # ============================================================
 
-tab_general, tab_carrera = st.tabs(
+seccion_activa = st.radio(
+    "Navegación",
     [
         "📊 Análisis general",
         "🎓 Análisis por carrera"
-    ]
+    ],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="navegacion_principal"
 )
 
 
 # ============================================================
-# PESTAÑA 1 · ANÁLISIS GENERAL
+# ANÁLISIS GENERAL
 # ============================================================
 
-with tab_general:
+if seccion_activa == "📊 Análisis general":
 
     st.subheader("Análisis general de aspirantes")
 
@@ -1302,6 +1394,9 @@ with tab_general:
 
     st.markdown("### Distribución de calificaciones por sexo")
     mostrar_grafica_calificaciones(df_general)
+
+    st.markdown("### Estado de procedencia")
+    mostrar_concentrado_estados(df_general)
 
     st.markdown(
         "## Bachillerato de procedencia y distribución de calificaciones"
@@ -1332,44 +1427,12 @@ with tab_general:
             top_n=10
         )
 
-    st.markdown("### Concentrado de bachilleratos hacia carreras")
-
-    concentrado = crear_concentrado_bachillerato_carrera(df_general)
-
-    if concentrado.empty:
-        st.info("No hay información suficiente para crear el concentrado.")
-
-    else:
-
-        concentrado = concentrado.rename(
-            columns={
-                "Bachillerato_procedencia": "Bachillerato",
-                "Carrera": "Carrera elegida",
-                "Total_bachillerato": "Total del bachillerato",
-                "Porcentaje_dentro_bachillerato": "% dentro del bachillerato"
-            }
-        )
-
-        st.dataframe(
-            concentrado[
-                [
-                    "Bachillerato",
-                    "Carrera elegida",
-                    "Aspirantes",
-                    "Total del bachillerato",
-                    "% dentro del bachillerato"
-                ]
-            ],
-            use_container_width=True,
-            hide_index=True
-        )
-
 
 # ============================================================
-# PESTAÑA 2 · ANÁLISIS POR CARRERA
+# ANÁLISIS POR CARRERA
 # ============================================================
 
-with tab_carrera:
+elif seccion_activa == "🎓 Análisis por carrera":
 
     st.subheader("Análisis por carrera")
 
@@ -1415,6 +1478,9 @@ with tab_carrera:
 
     st.markdown("### Distribución de calificaciones por sexo")
     mostrar_grafica_calificaciones(df_carrera)
+
+    st.markdown("### Estado de procedencia")
+    mostrar_concentrado_estados(df_carrera)
 
     st.markdown(
         "## Bachillerato de procedencia y distribución de calificaciones"
